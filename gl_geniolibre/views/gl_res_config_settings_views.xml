@@ -10,7 +10,11 @@
                      logo="/gl_geniolibre/static/description/icon.png">
                     <block title="Facebook">
                         <div class="col-xs-12  row o_settings_container">
-                            <label class="col-lg-3" string="Facebook Page Access Tokens" for="user_access_token"/>
+                            <label class="col-lg-3" string="Facebook App Secret" for="facebook_app_secret"/>
+                            <field name="facebook_app_secret" title="APP Key"/>
+                            <label class="col-lg-3 mt-3" string="Facebook Client ID" for="facebook_app_id" />
+                            <field name="facebook_app_id" title="APP Key"/>
+                            <label class="col-lg-3 mt-3" string="Facebook Page Access Tokens" for="user_access_token"/>
                             <field name="user_access_token" title="APP Key"/>
                             <div class="content-group" >
                                 <div class="mt8">
@@ -25,7 +29,7 @@
                         <div class="col-xs-12 row o_settings_container">
                             <label class="col-lg-3" string="Clave de acceso" for="aws_access_key"/>
                             <field name="aws_access_key" title="API Key"/>
-                            <label class="col-lg-3" string="Clave de acceso secreta" for="aws_secret"/>
+                            <label class="col-lg-3 mt-3" string="Clave de acceso secreta" for="aws_secret"/>
                             <field name="aws_secret" title="API Key"/>
                         </div>
                     </block>
@@ -33,7 +37,7 @@
                         <div class="col-xs-12 row o_settings_container">
                             <label class="col-lg-3" string="Client KEY" for="tiktok_client"/>
                             <field name="tiktok_client" title="Client KEY"/>
-                            <label class="col-lg-3" string="Client SECRET" for="tiktok_secret"/>
+                            <label class="col-lg-3 mt-3" string="Client SECRET" for="tiktok_secret"/>
                             <field name="tiktok_secret" title="Client SECRET"/>
 
                         </div>

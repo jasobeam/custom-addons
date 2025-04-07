@@ -11,9 +11,8 @@ class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
     user_access_token = fields.Char(string="Facebook API Key", config_parameter="gl_facebook.api_key")
-    facebook_app_id = fields.Char(string="Facebook API Key", config_parameter="gl_facebook.app_id", default="392788936659260", readonly=True)
-    facebook_app_secret = fields.Char(string="Facebook API Key", config_parameter="gl_facebook.secret",
-                                  default="bdda440d76fe2d1ab17d7b6d64b5c04e", readonly=True)
+    facebook_app_id = fields.Char(string="Facebook API Key", config_parameter="gl_facebook.app_id")
+    facebook_app_secret = fields.Char(string="Facebook APP Secret", config_parameter="gl_facebook.secret")
     facebook_redirect_uri = fields.Char(string="TikTok Redirect URI", config_parameter="facebook_redirect",
                                       default="http://localhost:8018/facebook-auth/")
 
