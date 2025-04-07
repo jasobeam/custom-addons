@@ -14,6 +14,8 @@
                             <field name="facebook_app_secret" title="APP Key"/>
                             <label class="col-lg-3 mt-3" string="Facebook Client ID" for="facebook_app_id" />
                             <field name="facebook_app_id" title="APP Key"/>
+                            <label class="col-lg-3 mt-3" string="Facebook Redirect URI" for="facebook_redirect_uri" />
+                            <field name="facebook_redirect_uri" title="APP Key"/>
                             <label class="col-lg-3 mt-3" string="Facebook Page Access Tokens" for="user_access_token"/>
                             <field name="user_access_token" title="APP Key"/>
                             <div class="content-group" >
@@ -39,6 +41,8 @@
                             <field name="tiktok_client" title="Client KEY"/>
                             <label class="col-lg-3 mt-3" string="Client SECRET" for="tiktok_secret"/>
                             <field name="tiktok_secret" title="Client SECRET"/>
+                            <label class="col-lg-3 mt-3" string="Redirect URI" for="tiktok_redirect_uri"/>
+                            <field name="tiktok_redirect_uri" title="Client SECRET"/>
 
                         </div>
                     </block>
