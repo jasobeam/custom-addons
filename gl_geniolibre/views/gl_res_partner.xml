@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <data>
+        <!-- Formulario modificado en res.partner *********************************************** VIEWS -->
+        <record id="res_partner_form_inherit_gl_geniolibre" model="ir.ui.view">
+            <field name="name">res.partner.form</field>
+            <field name="model">res.partner</field>
+            <field name="inherit_id" ref="base.view_partner_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//page[@name='contact_addresses']" position="after">
+                    <page string="Credenciales" name="credenciales">
+                        <group>
+                            <group string="Redes Sociales">
+                                <field name="credenciales" options='{"show_string": False}'>
+                                    <list>
+                                        <field name="name"/>
+                                    </list>
+                                </field>
+
+                            </group>
+                            <group string="Facebook API">
+                                <field name="facebook_page_id" string="Page ID"/>
+                                <field name="facebook_page_access_token" string="Page Access Token"/>
+                                <field name="instagram_page_id" string="Instagram Business ID"/>
+                                <button string="Obtener Datos" icon="fa-check" type="object"
+                                        name="facebook_obtener_datos" class="btn-success mr4" invisible="facebook_page_id != False"/>
+                            </group>
+                            <group string="TikTok API">
+                                <field name="tiktok_auth_code" string="Authorization Code"/>
+                                <field name="tiktok_access_token" string="Access Token"/>
+
+                                <field name="tiktok_refresh_token" string="Refresh Token"/>
+                                <field name="tiktok_expires_in" string="Expiration"/>
+
+                                <field name="code_verifier" />
+                                <field name="code_challenge"/>
+                                <button string="Obtener Autorización" icon="fa-tiktok" type="object"
+                                        name="tiktok_get_auth_code" class="btn-success mr4"
+                                        invisible="tiktok_auth_code"/>
+                                <button string="Obtener Token de Acceso" icon="fa-tiktok" type="object"
+                                        name="tiktok_get_access_token" class="btn-success mr4"
+                                        invisible="not tiktok_auth_code or tiktok_access_token"/>
+                            </group>
+
+                        </group>
+                    </page>
+                </xpath>
+                <xpath expr="//group[@name='banks']" position="before">
+                    <group string="Planes de Marketing">
+                        <field name="plan_descripcion"/>
+                        <field name="plan_post"/>
+                        <field name="plan_historia"/>
+                        <field name="plan_reel"/>
+                        <field name="monto"/>
+                        <field name="publicidad"/>
+                        <field name="moneda"/>
+                    </group>
+                </xpath>
+
+            </field>
+        </record>
+        <!-- Vista tree - form de gl_credentials-->
+        <record id="gl_credentials_form" model="ir.ui.view">
+            <field name="name">gl.credentials.form</field>
+            <field name="model">gl.credentials</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="name"/>
+                            <field name="link"/>
+                            <field name="usuario"/>
+                            <field name="password"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+
+    </data>
+
+</odoo>

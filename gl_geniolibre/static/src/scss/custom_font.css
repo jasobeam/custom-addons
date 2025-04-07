@@ -1,0 +1,8 @@
+@font-face {
+    font-family: 'Noto';
+    font-weight: 400;
+    src: url(/gl_geniolibre/static/src/fonts/NotoEmoji-VariableFont_wght.ttf) format('truetype');
+}
+.emojis {
+    font-family: 'Lato','Noto';
+}

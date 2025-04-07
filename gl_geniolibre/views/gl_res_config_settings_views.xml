@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<odoo>
+    <record id="res_config_settings_view_inherit_geniolibre" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form..inherit.geniolibre</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="GenioLibre" string="GenioLibre" name="GenioLibre"
+                     logo="/gl_geniolibre/static/description/icon.png">
+                    <block title="Facebook">
+                        <div class="col-xs-12  row o_settings_container">
+                            <label class="col-lg-3" string="Facebook Page Access Tokens" for="user_access_token"/>
+                            <field name="user_access_token" title="APP Key"/>
+                            <div class="content-group" >
+                                <div class="mt8">
+                                    <button string="Connectar con Facebook" icon="fa-facebook" type="object" name="conectar_facebook"
+                                    class="btn-primary"/>
+                                </div>
+                            </div>
+
+                        </div>
+                    </block>
+                    <block title="Amazon Web services">
+                        <div class="col-xs-12 row o_settings_container">
+                            <label class="col-lg-3" string="Clave de acceso" for="aws_access_key"/>
+                            <field name="aws_access_key" title="API Key"/>
+                            <label class="col-lg-3" string="Clave de acceso secreta" for="aws_secret"/>
+                            <field name="aws_secret" title="API Key"/>
+                        </div>
+                    </block>
+                    <block title="TikTok">
+                        <div class="col-xs-12 row o_settings_container">
+                            <label class="col-lg-3" string="Client KEY" for="tiktok_client"/>
+                            <field name="tiktok_client" title="Client KEY"/>
+                            <label class="col-lg-3" string="Client SECRET" for="tiktok_secret"/>
+                            <field name="tiktok_secret" title="Client SECRET"/>
+
+                        </div>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>
+                                                                    

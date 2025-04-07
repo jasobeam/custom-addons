@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="gl_geniolibre_post_image" model="ir.ui.view">
+            <field name="name">Post Image</field>
+            <field name="model">project.task</field>
+            <field name="inherit_id" ref="project.view_task_form2"/>
+            <field name="arch" type="xml">
+                <xpath expr="//page[@name='description_page']" position="after">
+                    <page string="Publicación Paga" invisible="tipo == 'otro'">
+                        <group>
+                            <field name="inicio_promocion"/>
+                            <field name="fin_promocion"/>
+                            <field name="presupuesto"/>
+                            <field name="currency_id" String="Moneda"/>
+                        </group>
+                    </page>
+
+                </xpath>
+                <xpath expr="//h1" position="replace" mode="inner">
+                    <widget name="web_ribbon" bg_color="text-bg-warning" title="Programado"
+                            invisible="post_estado != 'Programado'"/>
+                    <widget name="web_ribbon" bg_color="text-bg-info" title="Procesando"
+                            invisible="post_estado != 'Procesando'"/>
+                    <widget name="web_ribbon" bg_color="text-bg-success" title="Publicado"
+                            invisible="post_estado != 'Publicado'"/>
+
+                    <div class="d-flex w-100">
+                        <field name="priority" widget="priority_switch" class="me-3"/>
+                        <field name="name" options="{'line_breaks': False}" widget="text"
+                               class="o_task_name text-truncate w-md-75 w-100 pe-2" placeholder="Task Title..."/>
+                    </div>
+                </xpath>
+                <xpath expr="//page[@name='description_page']" position="after">
+                    <page string="Archivos de la Tarea">
+                        <group>
+                            <field name="adjuntos_ids" widget="many2many_binary"
+                                   options="{'no_create': True , 'accepted_file_extensions': '.jpeg,.jpg,.mp4'}"/>
+                        </group>
+                    </page>
+                </xpath>
+                <xpath expr="//group/group[2]" position="inside">
+                    <field name="tipo" widget="selection" readonly="post_estado != 'Pendiente'"/>
+                    <field name="fecha_publicacion" readonly="post_estado != 'Pendiente'" invisible="tipo == 'otro' "/>
+                    <field name="red_social_ids" readonly="post_estado != 'Pendiente'" widget="many2many_tags"
+                           options="{'no_create_edit': True}"/>
+                    <div class="row container">
+                        <div class="col-12 p-0 me-3 mt-3">
+                            <button string="Programar" icon="fa-calendar" type="object" name="programar_post"
+                                    class="btn-primary mr4"
+                                    invisible="post_estado != 'Pendiente' or tipo =='otro'"/>
+                            <button string="Publicar" icon="fa-check" type="object" name="publicar_post"
+                                    class="btn-success mr4"
+                                    invisible="post_estado != 'Pendiente' or tipo =='otro'"
+                                    confirm="¿Estas seguro de Publicar este Post?"/>
+                            <button string="Cancelar" icon="fa-trash-o" type="object" name="cancelar_post"
+                                    class="btn-danger mr4"
+                                    invisible="post_estado == 'Pendiente' or post_estado == 'Publicado' or tipo =='otro'"/>
+                            <button string="Revisar" icon="fa-check" type="object" name="revisar_post"
+                                    class="btn-success mr4"
+                                    invisible="post_estado != 'Publicado'"/>
+                        </div>
+
+                    </div>
+                </xpath>
+                <xpath expr="//field[@name='tag_ids']" position="after">
+                    <field name="fb_post_url" widget="url" invisible="not fb_post_url"/>
+                    <field name="inst_post_url" widget="url" invisible="not inst_post_url"/>
+                    <field name="tiktok_post_url" widget="url" invisible="not tiktok_post_url"/>
+                    <field name="post_estado"/>
+                    <div class="d-flex justify-content-end o_state_container" invisible="not active">
+                        <field name="state" widget="project_task_state_selection" class="o_task_state_widget"
+                               string="Estado de la Tarea"/>
+                    </div>
+                    <div class="d-flex justify-content-start o_state_container w-100 w-md-50 w-lg-25"
+                         invisible="active">
+                        <field name="state" widget="project_task_state_selection" class="o_task_state_widget"
+                               string="Estado de la Tarea"/>
+                    </div>
+
+                </xpath>
+            </field>
+        </record>
+        <record id="gl_geniolibre_task_kanban" model="ir.ui.view">
+            <field name="name">GL Task Kanban</field>
+            <field name="model">project.task</field>
+            <field name="inherit_id" ref="project.view_task_kanban"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='priority']" position="before">
+                    <field name="post_estado" widget="badge" decoration-info="post_estado == 'Procesando'"
+                           decoration-warning="post_estado == 'Programado'"
+                           decoration-success="post_estado == 'Publicado'"/>
+                </xpath>
+                <xpath expr="//field[@name='partner_id']" position="replace">
+                    <field name="tipo" widget="badge" class="mb-3"/>
+                </xpath>
+            </field>
+        </record>
+        <record id="gl_geniolibre_task_list" model="ir.ui.view">
+            <field name="name">Taks list</field>
+            <field name="model">project.task</field>
+            <field name="inherit_id" ref="project.view_task_tree2"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='project_id']" position="before">
+                    <field name="post_estado" widget="badge" string="Estado de Publicación" decoration-info="post_estado == 'Procesando'"
+                           decoration-warning="post_estado == 'Programado'"
+                           decoration-success="post_estado == 'Publicado'"/>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

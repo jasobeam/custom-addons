@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="gl_geniolibre_project_kanban" model="ir.ui.view">
+            <field name="name">Gl Custom Project kanban</field>
+            <field name="model">project.project</field>
+            <field name="inherit_id" ref="project.view_project_kanban"/>
+            <field name="arch" type="xml">
+                <xpath expr="//span[@name='partner_name']" position="after">
+                    <field name="project_type" widget="badge"/>
+                    <group invisible="project_type != 'marketing'" >
+                        <p class="mb-0 mt-3" ><strong>Plan:
+                            <field name="partner_plan_descripcion"/></strong>
+                        </p>
+                        <p class="mb-0">Posts:
+                            <field name="partner_plan_post"/>
+                        </p>
+                        <p class="mb-0">Historias:
+                            <field name="partner_plan_historia"/>
+                        </p>
+                        <p class="mb-0">Reels:
+                            <field name="partner_plan_reel"/>
+                        </p>
+                    </group>
+                </xpath>
+
+            </field>
+        </record>
+        <record id="gl_geniolibre_project_config" model="ir.ui.view">
+            <field name="name">Gl Custom Project Description</field>
+            <field name="model">project.project</field>
+            <field name="inherit_id" ref="project.edit_project"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='date_start']" position="after">
+                    <field name="project_type"/>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

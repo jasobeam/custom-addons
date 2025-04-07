@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="gl_print_task_report">
+        <t t-foreach="docs" t-as="o">
+            <t t-call="web.html_container">
+                <t t-call="web.basic_layout">
+                    <div class="header" align="center">
+                        <img t-if="o.partner_id.image_128" t-att-src="image_data_uri(o.partner_id.image_128)"
+                             alt="Company Logo"/>
+                        <h4 t-field="o.name" align="center"/>
+                        <strong>
+                            <p align="center">Fecha de Publicación:
+                                <span t-field="o.fecha_publicacion"
+                                      t-options='{"widget": "datetime","format": "d MMMM - HH:MM"}'/>
+                            </p>
+                        </strong>
+                    </div>
+                    <hr/>
+                    <div class="page mt-3">
+                        <td name="td_name">
+                            <span class="descripcion emojis" t-field="o.description"/>
+                        </td>
+                    </div>
+                    <div class="footer" align="center">
+                        <hr/>
+                        <p>Desarrollado por GenioLibre</p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="gl_print_task" model="ir.actions.report">
+        <field name="name">Plan de Publicaciones</field>
+        <field name="model">project.task</field>
+        <field name="report_type">qweb-html</field>
+        <field name="report_name">gl_geniolibre.gl_print_task_report</field>
+        <field name="report_file">gl_geniolibre.gl_print_task_report</field>
+        <field name="print_report_name">'Plan de Publicaciones'</field>
+        <field name="binding_model_id" ref="model_project_task"/>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>
