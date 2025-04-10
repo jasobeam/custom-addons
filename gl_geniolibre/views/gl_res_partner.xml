@@ -31,15 +31,14 @@
 
                                 <field name="tiktok_refresh_token" string="Refresh Token"/>
                                 <field name="tiktok_expires_in" string="Expiration"/>
+                                <field name="tiktok_issued_at" string="Issued At"/>
 
-                                <field name="code_verifier" />
-                                <field name="code_challenge"/>
                                 <button string="Obtener Autorización" icon="fa-tiktok" type="object"
                                         name="tiktok_get_auth_code" class="btn-success mr4"
                                         invisible="tiktok_auth_code"/>
-                                <button string="Obtener Token de Acceso" icon="fa-tiktok" type="object"
-                                        name="tiktok_get_access_token" class="btn-success mr4"
-                                        invisible="not tiktok_auth_code or tiktok_access_token"/>
+                                <button string="Renovar TOken" icon="fa-tiktok" type="object"
+                                        name="tiktok_renew_token" class="btn-success mr4"
+                                        invisible="not tiktok_auth_code"/>
                             </group>
 
                         </group>

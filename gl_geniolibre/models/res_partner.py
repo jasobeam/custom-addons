@@ -2,6 +2,8 @@
 import base64
 import hashlib
 import random
+import time
+from datetime import datetime
 
 import requests
 
@@ -17,10 +19,13 @@ class Partner(models.Model):
     facebook_page_access_token = fields.Char(readonly=True)
     instagram_page_id = fields.Char(readonly=True)
 
-    tiktok_auth_code = fields.Char(string="TikTok Auth Code", tracking=True, readonly=True)
+    tiktok_auth_code = fields.Char(string="TikTok Auth Code", tracking=True)
     tiktok_access_token = fields.Char(string="TikTok Page id", tracking=True, readonly=True)
     tiktok_refresh_token = fields.Char(readonly=True)
     tiktok_expires_in = fields.Integer(readonly=True)
+    tiktok_refresh_expires_in = fields.Integer(readonly=True)
+    tiktok_issued_at=fields.Integer(readonly=True)
+
     code_verifier = fields.Char(readonly=True)
     code_challenge = fields.Char(readonly=True)
 
@@ -100,17 +105,68 @@ class Partner(models.Model):
             'target': 'new',
         }
 
-    def tiktok_get_access_token(self):
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': 'Success',
-                'message': 'TikTok authorization successful!',
-                'type': 'success',
-                'sticky': False,
+    def tiktok_renew_token(self):
+        parametros = self.env['ir.config_parameter'].sudo()
+        tiktok_client = parametros.get_param('tiktok_key')
+        tiktok_secret = parametros.get_param('tiktok_secret')
+
+
+        # Supongamos que guardaste el tiempo en que se emitió y la duración en segundos
+        issued_at = self.tiktok_issued_at
+        expires_in = self.tiktok_expires_in
+        days = 86400 * 1  # 3 días en segundos
+
+        # Calcula el tiempo de expiración y el umbral de renovación
+        expiration_time = issued_at + expires_in
+        renewal_threshold = expiration_time - days
+        # Verifica si ya se necesita renovar
+        if time.time() >= renewal_threshold:
+            url = "https://open.tiktokapis.com/v2/oauth/token/"
+
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Cache-Control": "no-cache"
             }
-        }
+
+            data = {
+                "client_key": tiktok_client,
+                "client_secret": tiktok_secret,
+                "grant_type": "refresh_token",
+                "refresh_token": self.tiktok_refresh_token
+            }
+            response = requests.post(url, headers=headers, data=data)
+            response_data = response.json()
+            if response.status_code == 200:
+                data = response.json()
+                print(data)
+                self.write({
+                    'tiktok_access_token': data.get('access_token'),
+                    'tiktok_expires_in': data.get('expires_in'),
+                    'tiktok_refresh_expires_in': data.get('refresh_expires_in'),
+                    'tiktok_refresh_token': data.get('refresh_token'),
+                    'tiktok_issued_at': int(datetime.now().timestamp()),
+                })
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'message': "El token ha sido actualizado",
+                        'type': 'success',
+                        'next': {'type': 'ir.actions.act_window_close'},
+                    }
+                }
+            else:
+                raise ValidationError(f"Error al publicar Feed en Facebook: {response_data}")
+        else:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'message': "El token aún es válido.",
+                    'type': 'success',
+                    'next': {'type': 'ir.actions.act_window_close'},
+                }
+            }
 
 
 def generate_random_string(length):

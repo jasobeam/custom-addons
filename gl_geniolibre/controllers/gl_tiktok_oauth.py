@@ -1,8 +1,12 @@
+import datetime
+
 import requests
 
 from odoo import http
 from odoo.http import request
 from werkzeug.utils import redirect
+from datetime import datetime
+
 
 import logging
 
@@ -60,14 +64,16 @@ class gl_tiktok_oauth_controller(http.Controller):
             response.raise_for_status()  # Raises exception for 4XX/5XX errors
             data = response.json()
             access_token = data.get('access_token')
-            refresh_expires_in = data.get('expires_in')
+            expires_in = data.get('expires_in')
             refresh_token = data.get('refresh_token')
+            refresh_expires_in = data.get('refresh_expires_in')
             print(data)
 
             res_partner.write({'tiktok_auth_code': code})
             res_partner.write({'tiktok_access_token': access_token})
-            res_partner.write({'tiktok_expires_in': refresh_expires_in})
+            res_partner.write({'tiktok_expires_in': expires_in})
             res_partner.write({'tiktok_refresh_token': refresh_token})
+            res_partner.write({'tiktok_issued_at': int(datetime.now().timestamp())})
 
 
             print(code)

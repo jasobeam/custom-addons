@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 {
-    'name': "GenioLibre - Custom Development",
+    'name': "TITHOR - Custom Development",
     'version': '1.0.1',
     'author': 'GenioLibre',
 
     'summary': """
-        GenioLibre Custom""",
+        Tithor Custom""",
 
     'description': """
-        Desarrollo personalizado para gestion de GenioLibre
+        Desarrollo personalizado para gestion de Tithor
     """,
 
-    'website': "GenioLibre.com",
+    'website': "Tithor.com",
     'application': True,
     'license': 'LGPL-3',
     # Categories can be used to filter modules in modules listing
@@ -24,26 +24,19 @@
 
     # always loaded
     'data': [
-        'security/ir.model.access.csv',
-
+        # 'views/gl_sale_order_line_views.xml',
         'views/gl_res_config_settings_views.xml',
-        'views/gl_res_partner.xml',
-        'views/gl_project_task.xml',
-        'views/gl_project_project.xml',
 
-        'report/gl_print_task.xml',
-        'report/gl_print_tasks_template.xml',
-
-        'cron/gl_cron_jobs.xml',
+        'report/gl_sale_pre_quote.xml',
+        'report/gl_sale_pre_quote_template.xml',
+        'report/gl_sale_order_report.xml',
     ],
     "assets": {
         "web.assets_backend": [
-            'gl_geniolibre/static/src/js/gl_many2many_attachment_preview.js',
-            'gl_geniolibre/static/src/xml/gl_many2many_attachment_preview_template.xml',
+
         ],
         'web.report_assets_common': [
-            '/gl_geniolibre/static/src/scss/custom_font.css',
-            '/gl_geniolibre/static/src/scss/custom_css.css',
+
         ],
     },
     # only loaded in demonstration mode

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="gl_sale_pre_quote" model="ir.actions.report">
+        <field name="name">Pre-Cotización</field>
+        <field name="model">sale.order</field>
+        <field name="report_type">qweb-html</field>
+        <field name="report_name">gl_tithor.gl_sale_pre_quote_report</field>
+        <field name="report_file">gl_tithor.gl_sale_pre_quote_report</field>
+        <field name="print_report_name">'Pre-Cotización'</field>
+        <field name="binding_model_id" ref="model_sale_order"/>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>

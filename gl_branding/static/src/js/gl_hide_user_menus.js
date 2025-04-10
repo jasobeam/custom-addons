@@ -11,7 +11,6 @@ patch(UserMenu.prototype, {
         userMenuRegistry.remove("documentation");
         userMenuRegistry.remove("support");
         userMenuRegistry.remove("shortcuts");
-        userMenuRegistry.remove("web_tour.tour_enabled");
         userMenuRegistry.remove("separator");
         userMenuRegistry.remove("odoo_account");
         userMenuRegistry.remove("install_pwa");

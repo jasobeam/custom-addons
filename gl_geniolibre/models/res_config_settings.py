@@ -10,10 +10,10 @@ from odoo.exceptions import ValidationError
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    user_access_token = fields.Char(string="Facebook API Key", config_parameter="gl_facebook.api_key")
+    user_access_token = fields.Char(string="Facebook Access Token", config_parameter="gl_facebook.api_key")
     facebook_app_id = fields.Char(string="Facebook API Key", config_parameter="gl_facebook.app_id")
     facebook_app_secret = fields.Char(string="Facebook APP Secret", config_parameter="gl_facebook.secret")
-    facebook_redirect_uri = fields.Char(string="TikTok Redirect URI", config_parameter="facebook_redirect",
+    facebook_redirect_uri = fields.Char(string="Facebook Redirect URI", config_parameter="facebook_redirect",
                                       default="http://localhost:8018/facebook-auth/")
 
     aws_access_key = fields.Char(string="AWS Clave de acceso", config_parameter="gl_aws.api_key")

@@ -25,6 +25,7 @@
     # always loaded
     'data': [
         'views/gl_branding.xml',
+        'views/gl_web_external_layout_folder.xml',
     ],
     "assets": {
         "web.assets_backend": [

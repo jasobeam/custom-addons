@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<odoo noupdate="1">
+    <record id="ir_cron_publicar_post" model="ir.cron">
+        <field name="name">GL Publicar Post Task</field>
+        <field name="model_id" ref="model_project_task"/>
+        <field name="state">code</field>
+        <field name="code">
+            for task in model.search([('post_estado', '=', 'Programado')]):
+                try:
+                    task.publicar_post()
+                except Exception as e:
+                    _logger.error(f"Error publishing post for task {task.id}: {e}")
+        </field>
+        <field name="interval_number">15</field>
+        <field name="interval_type">minutes</field> <!-- changed from 'hours' -->
+        <field name="active">True</field>
+
+    </record>
+</odoo>

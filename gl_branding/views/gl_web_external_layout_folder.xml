@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--Inherits the sale order report template to add the image of the product in the report-->
+    <template id="gl_external_layout_folder"
+              inherit_id="web.external_layout_folder">
+        <xpath expr="//t[@t-set='header_shape_height']" position="replace">
+            <t t-set="header_shape_height" t-value="'130'"/> <!-- Your new value -->
+        </xpath>
+
+    </template>
+</odoo>

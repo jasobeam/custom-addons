@@ -10,6 +10,10 @@ from odoo.exceptions import ValidationError
 from odoo.tools import html2plaintext
 from odoo import models, fields, api
 
+import logging
+
+_logger = logging.getLogger(__name__)
+
 
 def show_notification(message=None, notif_type=None):
     action = {
@@ -83,11 +87,6 @@ class project_task(models.Model):
     tiktok_post_url = fields.Char(string="TikTok Post URL")
 
     def write(self, vals):
-        # First check for the fields we care about
-        # if any(rec.post_estado == 'Publicado' for rec in self):
-        #     raise ValidationError(
-        #         "Published records cannot be modified"
-        #     )
         for record in self:
             # Get the new values or fall back to existing ones
             current_tipo = vals.get('tipo', record.tipo)
@@ -186,29 +185,26 @@ class project_task(models.Model):
 
         # Get TIKTOK Permalink
         # if self.tiktok_post_id:
-            # url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
-            # headers = {
-            #     'Authorization': f'Bearer {self.partner_tiktok_access_token}',
-            #     'Content-Type': 'application/json',
-            # }
-            # # data = {
-            # #     "filters": {
-            # #         "video_ids": [
-            # #             "7488853498180782135"                    ]
-            # #     }
-            # # }
-            # data = {
-            #     "publish_id": self.tiktok_post_id,
-            # }
-            # print('headers', headers)
-            # print('data', data)
-            # response = requests.get(url, headers=headers, data=data)
-            # print('TIKTOK', response)
-            # if response.status_code != 200:
-            #     error_message.append(response.json())
-            # else:
-            #     data = response.json()
-            #     self.tiktok_post_url = data.get('permalink')
+        # url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
+        # headers = {
+        #     'Authorization': f'Bearer {self.partner_tiktok_access_token}',
+        #     'Content-Type': 'application/json',
+        # }
+        # # data = {
+        # #     "filters": {
+        # #         "video_ids": [
+        # #             "7488853498180782135"                    ]
+        # #     }
+        # # }
+        # data = {
+        #     "publish_id": self.tiktok_post_id,
+        # }
+        # response = requests.get(url, headers=headers, data=data)
+        # if response.status_code != 200:
+        #     error_message.append(response.json())
+        # else:
+        #     data = response.json()
+        #     self.tiktok_post_url = data.get('permalink')
 
         if error_message:
             show_notification(error_message, "warning")
@@ -216,6 +212,10 @@ class project_task(models.Model):
             show_notification("Las URL de las publicaciones fueron actualizadas", "success")
 
     def publicar_post(self):
+        now = fields.Datetime.now()
+        show_notification("Debe seleccionar una red social", "warning")
+        if not self.red_social_ids:
+            raise ValidationError("Debe seleccionar al menos una red social")
 
         BASE_URL = 'https://graph.facebook.com/v22.0'
 
@@ -224,8 +224,8 @@ class project_task(models.Model):
         aws_api = parametros.get_param('gl_aws.api_key')
         aws_secret = parametros.get_param('gl_aws.secret')
         user_access_token = parametros.get_param('gl_facebook.api_key')
-        print(self.adjuntos_ids)
-        print(self.red_social_ids.mapped('name'))
+
+
         # Funciones
         def upload_images_to_facebook():
             """
@@ -249,7 +249,7 @@ class project_task(models.Model):
                 raise ValidationError(f"Error al subir una imagen en Facebook: {response_upload.json()}")
 
         def publish_on_facebook(media_ids):
-            print(self.tipo)
+
             url = f"{BASE_URL}/{self.partner_facebook_page_id}/{self.tipo}"
             if self.tipo == "feed":
                 params = {
@@ -261,7 +261,6 @@ class project_task(models.Model):
 
                 response = requests.post(url, params=params)
                 response_data = response.json()
-                print(response_data)
                 if response.status_code == 200:
                     return response.json().get("id")
                 else:
@@ -277,7 +276,6 @@ class project_task(models.Model):
                 }
                 response = requests.post(url, data=headers, params=params)
                 response_data = response.json()
-                print(response_data)
                 if 'video_id' in response_data and 'upload_url' in response_data:
                     video_id = response_data['video_id']
                     self.fb_video_id = video_id
@@ -290,10 +288,8 @@ class project_task(models.Model):
                     "Authorization": f"OAuth {self.partner_page_access_token}",
                     "file_url": media_ids[0],
                 }
-                print(headers)
                 response = requests.post(upload_url, headers=headers)
                 response_data = response.json()
-                print(response_data)
                 if 'success' not in response_data:
                     raise ValidationError(f"Error uploading video file: {response_data}")
 
@@ -304,10 +300,8 @@ class project_task(models.Model):
                     "video_state": "PUBLISHED",
                     "description": html2plaintext(self.description),
                 }
-
                 response = requests.post(url, params=params)
                 response_data = response.json()
-                print(response_data)
                 if 'success' in response_data:
                     return response_data.get("post_id")
                 else:
@@ -319,7 +313,6 @@ class project_task(models.Model):
             carousel_ids = []
             container_url = f"{BASE_URL}/{self.partner_instagram_page_id}/media"
             # Step 1: Create media container
-            print(media_urls[0])
             if len(media_urls) == 1:
                 if self.tipo == "feed":
                     container_params = {
@@ -329,18 +322,25 @@ class project_task(models.Model):
                         'published': True,  # Important for scheduling
                     }
                 else:
-                    container_params = {
-                        'access_token': self.partner_page_access_token,
-                        'caption': html2plaintext(self.description),
-                        'video_url': media_urls[0],  # For images
-                        'published': True,  # Important for scheduling,
-                        'media_type': 'REELS'
-                    }
+                    if self.tipo == "video_stories":
+                        container_params = {
+                            'access_token': self.partner_page_access_token,
+                            'caption': html2plaintext(self.description),
+                            'video_url': media_urls[0],  # For images
+                            'published': True,  # Important for scheduling,
+                            'media_type': 'STORIES'
+                        }
+                    else:
+                        container_params = {
+                            'access_token': self.partner_page_access_token,
+                            'caption': html2plaintext(self.description),
+                            'video_url': media_urls[0],  # For images
+                            'published': True,  # Important for scheduling,
+                            'media_type': 'REELS'
+                        }
 
-                print(container_params)
                 container_response = requests.post(container_url, params=container_params)
                 container_id = container_response.json().get('id')
-                print(container_id)
                 if container_response.status_code != 200:
                     error_message = container_response.json()
                     raise ValidationError(f"Error al crear el contenedor de Instagram: {error_message}")
@@ -355,7 +355,7 @@ class project_task(models.Model):
                 for _ in range(30):
                     status_response = requests.get(status_url, params=status_params)
                     status_data = status_response.json()
-
+                    print(status_data)
                     if status_data.get('status_code') == 'FINISHED':
                         break  # Video is ready
                     elif status_data.get('status_code') == 'ERROR':
@@ -374,7 +374,6 @@ class project_task(models.Model):
                     carousel_response = requests.post(container_url, params=carousel_params)
                     carousel_id = carousel_response.json().get('id')
                     carousel_ids.append(carousel_response.json()['id'])
-                    print(container_id)
 
                 carousel_params = {
                     'media_type': 'CAROUSEL',
@@ -385,7 +384,6 @@ class project_task(models.Model):
 
                 container_response = requests.post(container_url, carousel_params)
                 container_id = container_response.json()['id']
-                print(container_id)
 
             # For immediate publishing (without scheduling)
             publish_params = {
@@ -393,7 +391,6 @@ class project_task(models.Model):
                 'creation_id': container_id,
             }
 
-            print(publish_params)
             publish_url = f"{BASE_URL}/{self.partner_instagram_page_id}/media_publish"
             publish_response = requests.post(publish_url, params=publish_params)
 
@@ -443,7 +440,6 @@ class project_task(models.Model):
 
         # Publicaciones
         media_ids = []
-
         media_urls = upload_files_to_s3(self.adjuntos_ids, aws_api, aws_secret)
 
         # Publicar en Facebook
@@ -458,7 +454,6 @@ class project_task(models.Model):
                 fb_response = publish_on_facebook(media_urls)
 
             if fb_response:
-                print(fb_response)
                 self.write({
                     'fb_post_id': fb_response,
                     'fb_post_url': 'https://www.facebook.com/' + fb_response,
@@ -470,7 +465,6 @@ class project_task(models.Model):
         # Publicar en Instagram
         if 'Instagram' in self.red_social_ids.mapped('name'):
             ins_response = publish_on_instagram(media_urls)
-            print(ins_response)
             if ins_response:
                 self.write({
                     'inst_post_id': ins_response,
@@ -482,7 +476,6 @@ class project_task(models.Model):
         #
 
         # Publicar en TikTok
-        print(self.red_social_ids.mapped('name'))
         if 'TikTok' in self.red_social_ids.mapped('name'):
             if self.partner_tiktok_access_token and self.tipo == "video_reels":
                 tik_response = publish_on_tiktok(media_urls)
@@ -575,7 +568,6 @@ def upload_files_to_s3(file, aws_api, aws_secret):
 
         except Exception as e:
             raise ValidationError(f"Error al subir {attachment.name}: {str(e)}")
-    print(uploaded_urls)
     return uploaded_urls
 
 
