@@ -2,6 +2,7 @@
 <odoo>
     <template id="hide_login_powered_by_odoo" inherit_id="web.login_layout" name="Hide login Powered by Odoo  ">
         <xpath expr="//div[@class='card-body']//div[last()]" position="replace">
+            <a class="border-end pe-2 me-1" href="/web/database/manager">Manage Databases</a>
         </xpath>
     </template>
 
