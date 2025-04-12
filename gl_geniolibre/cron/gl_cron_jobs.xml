@@ -11,7 +11,7 @@
                 except Exception as e:
                     _logger.error(f"Error publishing post for task {task.id}: {e}")
         </field>
-        <field name="interval_number">15</field>
+        <field name="interval_number">5</field>
         <field name="interval_type">minutes</field> <!-- changed from 'hours' -->
         <field name="active">True</field>
 

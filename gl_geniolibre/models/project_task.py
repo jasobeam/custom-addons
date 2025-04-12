@@ -212,6 +212,7 @@ class project_task(models.Model):
             show_notification("Las URL de las publicaciones fueron actualizadas", "success")
 
     def publicar_post(self):
+        print("Inicio CRON")
         now = fields.Datetime.now()
         show_notification("Debe seleccionar una red social", "warning")
         if not self.red_social_ids:
