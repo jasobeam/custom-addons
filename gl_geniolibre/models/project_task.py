@@ -116,14 +116,14 @@ class project_task(models.Model):
                 continue
 
             # Validate fecha_publicacion
-            if current_fecha:
-                if isinstance(current_fecha, str):
-                    current_fecha = fields.Datetime.from_string(current_fecha)
-                min_datetime = datetime.now() + timedelta(minutes=30)
-                if current_fecha < min_datetime:
-                    raise ValidationError(
-                        "La fecha de publicación debe ser al menos 30 minutos después de la hora actual."
-                    )
+            # if current_fecha:
+            #     if isinstance(current_fecha, str):
+            #         current_fecha = fields.Datetime.from_string(current_fecha)
+            #     min_datetime = datetime.now() + timedelta(minutes=30)
+            #     if current_fecha < min_datetime:
+            #         raise ValidationError(
+            #             "La fecha de publicación debe ser al menos 30 minutos después de la hora actual."
+            #         )
 
             # Validate attachments exist
             if len(current_attachments) < 1:
