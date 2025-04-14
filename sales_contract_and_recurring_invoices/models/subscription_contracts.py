@@ -238,7 +238,7 @@ class SubscriptionContracts(models.Model):
     @api.depends('current_reference')
     def _compute_sale_order_lines(self):
         """ Get sale order line of contract lines """
-        print("sale order line compute",self.current_reference)
+        print("sale order line compute", self.current_reference)
         self.current_reference = self.id
 
         product_id = self.contract_line_ids.mapped('product_id')
@@ -246,7 +246,7 @@ class SubscriptionContracts(models.Model):
             ('order_partner_id', '=', self.partner_id.id)
         ])
         print(sale_order_line)
-        print("products",product_id)
+        print("products", product_id)
         for rec in sale_order_line:
             if self.date_start <= datetime.datetime.date(
                     rec.create_date) <= self.date_end:

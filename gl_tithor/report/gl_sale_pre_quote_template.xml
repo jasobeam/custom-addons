@@ -54,7 +54,7 @@
                             </div>
                             <div t-if="doc.date_order" class="col" name="informations_date">
                                 <strong t-if="is_proforma">Issued Date</strong>
-                                <strong t-elif="doc.state in ['draft', 'sent']">Fecha de Cotización</strong>
+                                <strong t-elif="doc.state in ['draft', 'sent']">Fecha de cotización</strong>
                                 <strong t-else="">Order Date</strong>
                                 <div t-field="doc.date_order" t-options="{&quot;widget&quot;: &quot;date&quot;}">
                                     2023-12-31
@@ -62,11 +62,11 @@
                             </div>
                             <div t-if="doc.validity_date and doc.state in ['draft', 'sent']" class="col"
                                  name="expiration_date">
-                                <strong>Fecha de Caducidad</strong>
+                                <strong>Vencimiento</strong>
                                 <div t-field="doc.validity_date">2023-12-31</div>
                             </div>
                             <div t-if="doc.user_id.name" class="col">
-                                <strong>Asesor de Ventas</strong>
+                                <strong>Vendedor</strong>
                                 <div t-field="doc.user_id">Mitchell Admin</div>
                             </div>
                         </div>
@@ -80,7 +80,7 @@
                             <!-- In case we want to repeat the header, remove "display: table-row-group" -->
                             <thead style="display: table-row-group">
                                 <tr>
-                                    <th name="th_description" class="text-start">Producto</th>
+                                    <th name="th_description" class="text-start">Descripción</th>
                                     <t t-if="request.env['ir.config_parameter'].sudo().get_param('sale_product_image.is_show_product_image_in_sale_report')">
                                         <th>
                                             <strong>Image</strong>
@@ -91,7 +91,7 @@
                                     <th name="th_discount" t-if="display_discount" class="text-end">
                                         <span>Disc.%</span>
                                     </th>
-                                    <th name="th_taxes" class="text-end">Impuestos</th>
+                                    <!--                                    <th name="th_taxes" class="text-end">Impuestos</th>-->
                                     <th name="th_subtotal" class="text-end">
                                         <span>Total</span>
                                     </th>
@@ -105,10 +105,10 @@
 
                                     <t t-set="current_subtotal" t-value="current_subtotal + line.price_subtotal"/>
 
-                                    <tr t-att-class="'fw-bold o_line_section' if (                                 line.display_type == 'line_section'                                 or line.product_type == 'combo'                             )                             else 'fst-italic o_line_note' if line.display_type == 'line_note'                             else ''">
+                                    <tr t-att-class="'fw-bold o_line_section' if (line.display_type == 'line_section' or line.product_type == 'combo')                             else 'fst-italic o_line_note' if line.display_type == 'line_note'                             else ''">
                                         <t t-if="not line.display_type and line.product_type != 'combo'">
                                             <td name="td_name">
-                                                <span t-field="line.name">Bacon Burger</span>
+                                                <span t-field="line.product_template_name">Bacon Burger</span>
                                             </td>
                                             <t t-if="request.env['ir.config_parameter'].sudo().get_param('sale_product_image.is_show_product_image_in_sale_report')">
                                                 <td style="height:120px !important;width:120px !important;">
@@ -133,12 +133,12 @@
                                             <td t-if="display_discount" class="text-end">
                                                 <span t-field="line.discount">-</span>
                                             </td>
-                                            <t t-set="taxes"
-                                               t-value="', '.join([(tax.invoice_label or tax.name) for tax in line.tax_id])"/>
-                                            <td name="td_taxes"
-                                                t-attf-class="text-end {{ 'text-nowrap' if len(taxes) &lt; 10 else '' }}">
-                                                <span t-out="taxes">Tax 15%</span>
-                                            </td>
+                                            <!--                                            <t t-set="taxes"-->
+                                            <!--                                               t-value="', '.join([(tax.invoice_label or tax.name) for tax in line.tax_id])"/>-->
+                                            <!--                                            <td name="td_taxes"-->
+                                            <!--                                                t-attf-class="text-end {{ 'text-nowrap' if len(taxes) &lt; 10 else '' }}">-->
+                                            <!--                                                <span t-out="taxes">Tax 15%</span>-->
+                                            <!--                                            </td>-->
                                             <td t-if="not line.is_downpayment" name="td_subtotal"
                                                 class="text-end o_price_total">
                                                 <span t-field="line.price_subtotal">27.00</span>
@@ -186,11 +186,11 @@
                                         <!--                                        </t>-->
                                         <tr class="o_total">
                                             <td>
-                                                <strong style="font-size:24px!important;" >Total</strong>
+                                                <strong style="font-size:24px!important;">Importe</strong>
                                             </td>
                                             <td class="text-end">
                                                 <strong style="font-size:24px!important;" t-out="doc.amount_total"
-                                                t-options="{'widget': 'monetary', 'display_currency': doc.currency_id}"/>
+                                                        t-options="{'widget': 'monetary', 'display_currency': doc.currency_id}"/>
                                             </td>
                                         </tr>
 
