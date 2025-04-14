@@ -15,7 +15,7 @@
     <!-- Contracts menu -->
     <menuitem id="subscription_contract_menu_action"
               name="Contracts"
-              parent="sale.menu_sale_config"
+              parent="sale.sale_order_menu"
               action="subscription_contracts_action"/>
     <!-- Subscription contract form view -->
     <record id="subscription_contracts_view_form" model="ir.ui.view">
