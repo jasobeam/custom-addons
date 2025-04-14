@@ -41,7 +41,6 @@ class Partner(models.Model):
         if self.facebook_page_id:
             access_token = self.env['ir.config_parameter'].sudo()
             page_access_token = access_token.get_param('gl_facebook.api_key')
-            print(page_access_token)
             version = 'v22.0'
             # api_url_token = f'https://graph.facebook.com/{version}/{self.facebook_page_id}?fields=access_token&access_token={page_access_token}'
 
@@ -54,10 +53,16 @@ class Partner(models.Model):
                 response = requests.get(url, params=params)
                 response.raise_for_status()  # Raise an exception if the request returns an HTTP error
                 data = response.json()
-                self.facebook_page_access_token = data['access_token']
-                self.instagram_page_id = data['instagram_business_account']['id']
+                self.write({
+                    'facebook_page_access_token': data['access_token'],
+                })
+                print(data)
+                if 'instagram_business_account' in data :
+                    self.write({
+                        'instagram_page_id': data['instagram_business_account']['id'],
+                    })
             except requests.exceptions.RequestException as e:
-                raise ValidationError(f"Error al publicar en Instagram: {response.json()}")
+                raise ValidationError(f"Error al obtener Tokens de Facebook: {response.json()}")
 
     def tiktok_get_auth_code(self):
         """

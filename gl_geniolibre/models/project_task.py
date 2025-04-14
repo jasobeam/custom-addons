@@ -87,10 +87,13 @@ class project_task(models.Model):
     tiktok_post_url = fields.Char(string="TikTok Post URL")
 
     def write(self, vals):
+
         for record in self:
+            if self.state != "03_approved":
+                return super().write(vals)
+
             # Get the new values or fall back to existing ones
             current_tipo = vals.get('tipo', record.tipo)
-            current_fecha = vals.get('fecha_publicacion', record.fecha_publicacion)
 
             # Handle attachments properly
             if 'adjuntos_ids' in vals:
@@ -113,22 +116,11 @@ class project_task(models.Model):
 
             # Skip validation for "otro" tipo
             if current_tipo == "otro":
-                continue
-
-            # Validate fecha_publicacion
-            if current_fecha:
-                if isinstance(current_fecha, str):
-                    current_fecha = fields.Datetime.from_string(current_fecha)
-                min_datetime = datetime.now() + timedelta(minutes=30)
-                if current_fecha < min_datetime:
-                    raise ValidationError(
-                        "La fecha de publicación debe ser al menos 30 minutos después de la hora actual."
-                    )
+                return
 
             # Validate attachments exist
             if len(current_attachments) < 1:
                 raise ValidationError("Debe seleccionar un archivo para publicar")
-
             # Validate attachment types
             if current_tipo != "feed":
                 if len(current_attachments) > 1 and len(self.adjuntos_ids) > 0:
@@ -152,11 +144,15 @@ class project_task(models.Model):
         return super().write(vals)
 
     def programar_post(self):
+        if self.state != "03_approved":
+            raise ValidationError("El estado de la Tarea debe ser 'Aprobado'")
+
         self.ensure_one()  # Asegura que solo hay un registro seleccionado
         self.env.cr.commit()  # Guarda la transacción en la base de datos
         self.post_estado = "Programado"
 
     def cancelar_post(self):
+
         self.ensure_one()  # Asegura que solo hay un registro seleccionado
         self.env.cr.commit()  # Guarda la transacción en la base de datos
         self.post_estado = "Pendiente"
@@ -212,8 +208,9 @@ class project_task(models.Model):
             show_notification("Las URL de las publicaciones fueron actualizadas", "success")
 
     def publicar_post(self):
-        print("Inicio CRON")
-        now = fields.Datetime.now()
+        if self.state != "03_approved":
+            raise ValidationError("El estado de la Tarea debe ser 'Aprobado'")
+
         show_notification("Debe seleccionar una red social", "warning")
         if not self.red_social_ids:
             raise ValidationError("Debe seleccionar al menos una red social")

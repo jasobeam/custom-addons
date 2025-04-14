@@ -20,7 +20,7 @@
     'category': 'Customizations',
 
     # any module necessary for this one to work correctly
-    'depends': ['base', 'mail', 'portal', 'base_setup','web','website','sale','sale_management','project',],
+    'depends': ['base', 'mail', 'portal', 'base_setup','web','website','sale','sale_management'],
 
     # always loaded
     'data': [

@@ -23,7 +23,7 @@
                                 <field name="facebook_page_access_token" string="Page Access Token"/>
                                 <field name="instagram_page_id" string="Instagram Business ID"/>
                                 <button string="Obtener Datos" icon="fa-check" type="object"
-                                        name="facebook_obtener_datos" class="btn-success mr4" invisible="facebook_page_id != False"/>
+                                        name="facebook_obtener_datos" class="btn-success mr4" invisible="facebook_page_id == False"/>
                             </group>
                             <group string="TikTok API">
                                 <field name="tiktok_auth_code" string="Authorization Code"/>

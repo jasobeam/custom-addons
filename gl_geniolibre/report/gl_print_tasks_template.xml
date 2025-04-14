@@ -5,7 +5,7 @@
             <t t-call="web.html_container">
                 <t t-call="web.basic_layout">
                     <div class="header" align="center">
-                        <img t-if="o.partner_id.image_128" t-att-src="image_data_uri(o.partner_id.image_128)"
+                        <img  class="mb-3" t-if="o.partner_id.image_256" t-att-src="image_data_uri(o.partner_id.image_256)"
                              alt="Company Logo"/>
                         <h4 t-field="o.name" align="center"/>
                         <strong>
