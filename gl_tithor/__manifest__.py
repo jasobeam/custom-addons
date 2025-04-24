@@ -29,7 +29,6 @@
         'views/gl_sale_order_line_views.xml',
 
         'report/gl_sale_pre_quote.xml',
-        'report/gl_sale_pre_quote_template.xml',
         'report/gl_sale_order_report.xml',
     ],
     "assets": {
