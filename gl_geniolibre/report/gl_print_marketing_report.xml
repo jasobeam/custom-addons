@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="gl_print_marketing_report" model="ir.actions.report">
+        <field name="name">Reporte de Marketing</field>
+        <field name="model">report.wizard</field>
+        <field name="report_type">qweb-html</field>
+        <field name="report_name">gl_geniolibre.gl_print_marketing_report_template</field>
+        <field name="report_file">gl_geniolibre.gl_print_marketing_report_template</field>
+        <field name="print_report_name">'Reporte de Marketing'</field>
+        <field name="binding_model_id" ref="model_project_project"/>
+        <field name="binding_type">report</field>
+    </record>
+    <template id="gl_print_marketing_report_template">
+        <t t-foreach="docs" t-as="o">
+            <t t-call="web.html_container">
+                <t t-call="web.basic_layout">
+
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

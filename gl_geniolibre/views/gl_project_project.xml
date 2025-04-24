@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
+        <!-- Gl Custom Project kanban -->
         <record id="gl_geniolibre_project_kanban" model="ir.ui.view">
             <field name="name">Gl Custom Project kanban</field>
             <field name="model">project.project</field>
@@ -8,9 +9,11 @@
             <field name="arch" type="xml">
                 <xpath expr="//span[@name='partner_name']" position="after">
                     <field name="project_type" widget="badge"/>
-                    <group invisible="project_type != 'marketing'" >
-                        <p class="mb-0 mt-3" ><strong>Plan:
-                            <field name="partner_plan_descripcion"/></strong>
+                    <group invisible="project_type != 'marketing'">
+                        <p class="mb-0 mt-3">
+                            <strong>Plan:
+                                <field name="partner_plan_descripcion"/>
+                            </strong>
                         </p>
                         <p class="mb-0">Posts:
                             <field name="partner_plan_post"/>
@@ -26,6 +29,7 @@
 
             </field>
         </record>
+        <!-- Gl Custom Project Description -->
         <record id="gl_geniolibre_project_config" model="ir.ui.view">
             <field name="name">Gl Custom Project Description</field>
             <field name="model">project.project</field>
@@ -33,7 +37,40 @@
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='date_start']" position="after">
                     <field name="project_type"/>
+                    <field name="facebook_ad_campaigns_ids" widget="many2many_tags"
+                           invisible="project_type != 'marketing'"/>
+                    <button name="fetch_facebook_campaigns"
+                            type="object"
+                            icon="fa-refresh"
+                            class="oe_inline"
+                            string=""
+                            title="Actualizar campañas"
+                            invisible="project_type != 'marketing'"/>
+                    <button name="create_marketing_report"
+                            string="Reporte de Marketing"
+                            type="object"
+                            class="btn-success" invisible="project_type != 'marketing'"/>
                 </xpath>
+            </field>
+        </record>
+        <record id="gl_facebook_ad_campaign_form" model="ir.ui.view">
+            <field name="name">Facebook Ad Campaign</field>
+            <field name="model">facebook.ad.campaigns</field>
+            <field name="arch" type="xml">
+                <form create="false" edit="false">
+                    <field name="name"/>
+                    <field name="campaign_id"/>
+                </form>
+            </field>
+        </record>
+        <record id="gl_facebook_ad_campaign_list" model="ir.ui.view">
+            <field name="name">Facebook Ad Campaign</field>
+            <field name="model">facebook.ad.campaigns</field>
+            <field name="arch" type="xml">
+                <list create="false" edit="false">
+                    <field name="name"/>
+                    <field name="campaign_id"/>
+                </list>
             </field>
         </record>
     </data>

@@ -6,7 +6,15 @@
             <field name="model">project.task</field>
             <field name="inherit_id" ref="project.view_task_form2"/>
             <field name="arch" type="xml">
-                <xpath expr="//page[@name='description_page']" position="after">
+                <xpath expr="//page[@name='description_page']" position="replace">
+                    <page name="description_page" string="Description">
+                        <group>
+                            <field name="description" type="html" options="{'collaborative': true, 'resizable': true}"
+                                   placeholder="Texto en la descripcion del post..."/>
+                            <field name="hashtags"/>
+                            <field name="texto_en_diseno" type="html" options="{'collaborative': true, 'resizable': true}" placeholder="Texto que se usará en el diseño..."/>
+                        </group>
+                    </page>
                     <page string="Publicación Paga" invisible="tipo == 'otro'">
                         <group>
                             <field name="inicio_promocion"/>
@@ -24,7 +32,8 @@
                             invisible="post_estado != 'Procesando'"/>
                     <widget name="web_ribbon" bg_color="text-bg-success" title="Publicado"
                             invisible="post_estado != 'Publicado'"/>
-
+                    <widget name="web_ribbon" bg_color="text-bg-danger" title="Error"
+                            invisible="post_estado != 'Error'"/>
                     <div class="d-flex w-100">
                         <field name="priority" widget="priority_switch" class="me-3"/>
                         <field name="name" options="{'line_breaks': False}" widget="text"
@@ -60,7 +69,6 @@
                                     class="btn-success mr4"
                                     invisible="post_estado != 'Publicado'"/>
                         </div>
-
                     </div>
                 </xpath>
                 <xpath expr="//field[@name='tag_ids']" position="after">
@@ -77,7 +85,6 @@
                         <field name="state" widget="project_task_state_selection" class="o_task_state_widget"
                                string="Estado de la Tarea"/>
                     </div>
-
                 </xpath>
             </field>
         </record>
@@ -102,8 +109,10 @@
             <field name="inherit_id" ref="project.view_task_tree2"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='project_id']" position="before">
-                    <field name="post_estado" widget="badge" string="Estado de Publicación" decoration-info="post_estado == 'Procesando'"
+                    <field name="post_estado" widget="badge" string="Estado de Publicación"
+                           decoration-info="post_estado == 'Procesando'"
                            decoration-warning="post_estado == 'Programado'"
+                           decoration-danger="post_estado == 'Error'"
                            decoration-success="post_estado == 'Publicado'"/>
                 </xpath>
             </field>

@@ -20,10 +20,13 @@
                             </group>
                             <group string="Facebook API">
                                 <field name="facebook_page_id" string="Page ID"/>
+                                <field name="facebook_ad_account" string="Cuenta Publicitaria"/>
+                                <field name="id_facebook_ad_account" string="ID de Cuenta Publicitaria" readonly="1"/>
                                 <field name="facebook_page_access_token" string="Page Access Token"/>
                                 <field name="instagram_page_id" string="Instagram Business ID"/>
                                 <button string="Obtener Datos" icon="fa-check" type="object"
-                                        name="facebook_obtener_datos" class="btn-success mr4" invisible="facebook_page_id == False"/>
+                                        name="facebook_obtener_datos" class="btn-success mr4"
+                                        invisible="facebook_page_id == False"/>
                             </group>
                             <group string="TikTok API">
                                 <field name="tiktok_auth_code" string="Authorization Code"/>
@@ -75,8 +78,31 @@
                 </form>
             </field>
         </record>
+        <record id="gl_facebook_ad_account_form" model="ir.ui.view">
+            <field name="name">Facebook Ad Accounts</field>
+            <field name="model">facebook.ad.account</field>
+            <field name="arch" type="xml">
+                <form create="false" edit="false">
+                    <sheet>
+                        <group>
+                            <field name="name"/>
+                            <field name="account_id"/>
 
-
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+        <record id="gl_facebook_ad_account_list" model="ir.ui.view">
+            <field name="name">Facebook Ad Accounts</field>
+            <field name="model">facebook.ad.account</field>
+            <field name="arch" type="xml">
+                <list create="false" edit="false">
+                    <field name="name"/>
+                    <field name="account_id"/>
+                </list>
+            </field>
+        </record>
     </data>
 
 </odoo>
