@@ -1,19 +1,40 @@
 <?xml version="1.0"?>
-<odoo noupdate="1">
+<odoo noupdate="0">
     <record id="ir_cron_publicar_post" model="ir.cron">
         <field name="name">GL Publicar Post Task</field>
         <field name="model_id" ref="model_project_task"/>
         <field name="state">code</field>
         <field name="code">
-            for task in model.search([('post_estado', '=', 'Programado')]):
-                try:
-                    task.publicar_post()
-                except Exception as e:
-                    _logger.error(f"Error publishing post for task {task.id}: {e}")
+            for record in model.search([('post_estado', '=', 'Programado')]):
+            try:
+                record.publicar_post()
+            except Exception as e:
+                error_message = f"Error al publicar el post: {str(e)}"
+                _logger.error(f"Error al publicar el post {record.id}: {e}")
+                record.write({
+                    'post_estado': 'Error',
+                    'state': '01_in_progress'
+                })
+                record.message_post(body=error_message, message_type='comment')
         </field>
-        <field name="interval_number">5</field>
+        <field name="interval_number">30</field>
         <field name="interval_type">minutes</field> <!-- changed from 'hours' -->
         <field name="active">True</field>
 
+    </record>
+    <record id="ir_cron_tiktok_renew_token" model="ir.cron">
+        <field name="name">GL TikTok Renew Token Daily</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="state">code</field>
+        <field name="code">
+            for record in model.search([('tiktok_refresh_token', '!=', False)]):
+            try:
+                record.tiktok_renew_token()
+            except Exception as e:
+                _logger.error(f"Error al renovar el token {record.id}: {e}")
+        </field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
     </record>
 </odoo>

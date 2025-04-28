@@ -1,0 +1,162 @@
+<odoo>
+    <!-- list View Definition for gl.social.metric -->
+    <record id="view_gl_social_metric_list" model="ir.ui.view">
+        <field name="name">gl.social.metric.list</field>
+        <field name="model">gl.social.metric</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false">
+                <field name="partner_id"/>
+                <field name="date_start"/>
+                <field name="date"/>
+                <field name="report_generated"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View Definition for gl.social.metric -->
+    <record id="view_gl_social_metric_form" model="ir.ui.view">
+        <field name="name">gl.social.metric.form</field>
+        <field name="model">gl.social.metric</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false">
+                <sheet>
+                    <!-- Datos Principales -->
+                    <group col="2">
+                        <field name="date_start" string="Período" widget="daterange"
+                               options="{&quot;end_date_field&quot;: &quot;date&quot;, &quot;always_range&quot;: &quot;1&quot;}"
+                               required="date_start or date"/>
+                        <field name="date" invisible="1" required="date_start"/>
+                        <field name="partner_id"/>
+                        <field name="report_generated"/>
+                    </group>
+
+                    <!-- Pestañas por red y tipo -->
+                    <notebook readonly="1">
+                        <page string="Facebook">
+                            <group>
+                                <group>
+                                    <field name="fb_impressions"/>
+                                    <field name="fb_reach"/>
+                                    <field name="fb_clicks"/>
+                                    <field name="fb_followers"/>
+                                </group>
+                                <group>
+                                    <field name="fb_page_engaged_users"/>
+                                    <field name="fb_page_views"/>
+                                    <field name="fb_page_fan_adds"/>
+                                    <field name="fb_page_fan_removes"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Facebook Ads">
+                            <group col="3">
+                                <group>
+                                    <field name="fbads_impressions"/>
+                                    <field name="fbads_reach"/>
+                                    <field name="fbads_clicks"/>
+                                    <field name="fbads_spend"/>
+                                    <field name="fbads_cpc"/>
+                                    <field name="fbads_ctr"/>
+                                </group>
+                                <group>
+                                    <field name="fbads_video_views"/>
+                                    <field name="fbads_thruplays"/>
+                                    <field name="fbads_leads"/>
+                                    <field name="fbads_conversions"/>
+                                    <field name="fbads_purchases"/>
+                                    <field name="fbads_add_to_cart"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Instagram">
+                            <group col="3">
+                                <group>
+                                    <field name="ig_impressions"/>
+                                    <field name="ig_reach"/>
+                                    <field name="ig_clicks"/>
+                                    <field name="ig_followers"/>
+                                    <field name="ig_profile_views"/>
+                                </group>
+                                <group>
+                                    <field name="ig_website_clicks"/>
+                                    <field name="ig_email_contacts"/>
+                                    <field name="ig_phone_calls"/>
+                                    <field name="ig_messages"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Instagram Ads">
+                            <group col="3">
+                                <group>
+                                    <field name="igads_impressions"/>
+                                    <field name="igads_reach"/>
+                                    <field name="igads_clicks"/>
+                                    <field name="igads_spend"/>
+                                    <field name="igads_cpc"/>
+                                </group>
+                                <group>
+                                    <field name="igads_ctr"/>
+                                    <field name="igads_video_views"/>
+                                    <field name="igads_thruplays"/>
+                                    <field name="igads_leads"/>
+                                    <field name="igads_conversions"/>
+                                    <field name="igads_purchases"/>
+                                    <field name="igads_add_to_cart"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="TikTok">
+                            <group col="3">
+                                <field name="tiktok_impressions"/>
+                                <field name="tiktok_reach"/>
+                                <field name="tiktok_clicks"/>
+                                <field name="tiktok_followers"/>
+                            </group>
+                        </page>
+
+                        <page string="TikTok Ads">
+                            <group col="3">
+                                <group>
+                                    <field name="tiktokads_impressions"/>
+                                    <field name="tiktokads_reach"/>
+                                    <field name="tiktokads_clicks"/>
+                                    <field name="tiktokads_spend"/>
+                                    <field name="tiktokads_cpc"/>
+                                    <field name="tiktokads_ctr"/>
+                                </group>
+                                <group>
+                                    <field name="tiktokads_video_views"/>
+                                    <field name="tiktokads_thruplays"/>
+                                    <field name="tiktokads_leads"/>
+                                    <field name="tiktokads_conversions"/>
+                                    <field name="tiktokads_purchases"/>
+                                    <field name="tiktokads_add_to_cart"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action to display the list and form views -->
+    <record id="action_gl_social_metric" model="ir.actions.act_window">
+        <field name="name">Reportes Sociales</field>
+        <field name="res_model">gl.social.metric</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Menu Item to launch the action -->
+    <menuitem
+            id="menu_action_gl_social_metric"
+            name="Reporte Social"
+            parent="project.menu_project_report"
+            action="action_gl_social_metric"
+            sequence="10"
+    />
+</odoo>

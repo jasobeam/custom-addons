@@ -11,6 +11,14 @@ from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
 
+class FacebookAdAccount(models.Model):
+    _name = 'facebook.ad.account'
+    _description = 'Facebook Ad Account'
+
+    name = fields.Char('Name')
+    account_id = fields.Char('Account ID')
+
+
 class Partner(models.Model):
     _inherit = "res.partner"
     credenciales = fields.One2many('gl.credentials', 'credenciales_id')
@@ -24,7 +32,7 @@ class Partner(models.Model):
     tiktok_refresh_token = fields.Char(readonly=True)
     tiktok_expires_in = fields.Integer(readonly=True)
     tiktok_refresh_expires_in = fields.Integer(readonly=True)
-    tiktok_issued_at=fields.Integer(readonly=True)
+    tiktok_issued_at = fields.Integer(readonly=True)
 
     code_verifier = fields.Char(readonly=True)
     code_challenge = fields.Char(readonly=True)
@@ -37,7 +45,55 @@ class Partner(models.Model):
     publicidad = fields.Float(string="Presupuesto Publicidad", tracking=True)
     moneda = fields.Many2one('res.currency', tracking=True)
 
+    id_facebook_ad_account = fields.Char(string="ID Cuenta Publicitaria",
+                                         related='facebook_ad_account.account_id',
+                                         readonly=True,  # opcional, si no quieres que el usuario lo modifique
+                                         store=True, )
+    facebook_ad_account = fields.Many2one(
+        'facebook.ad.account',
+        string='Cuenta publicitaria de Facebook'
+    )
+
+
+
     def facebook_obtener_datos(self):
+
+        def fetch_facebook_accounts():
+            access_token = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_key')
+
+            if not access_token:
+                return
+
+            url = f"https://graph.facebook.com/v19.0/me/adaccounts"
+            params = {
+                'access_token': access_token,
+                'fields': 'name,account_id'
+            }
+
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            accounts = response.json().get('data', [])
+
+            AdAccount = self.env['facebook.ad.account'].sudo()
+            api_ids = [acc['account_id'] for acc in accounts]
+
+            # 1) Actualizar o crear
+            for acc in accounts:
+                existing = AdAccount.search([('account_id', '=', acc['account_id'])], limit=1)
+                if existing:
+                    if existing.name != acc['name']:
+                        existing.write({'name': acc['name']})
+                else:
+                    AdAccount.create({
+                        'name': acc['name'],
+                        'account_id': acc['account_id'],
+                    })
+
+            # 2) Eliminar las cuentas que ya no existen en Facebook
+            stale = AdAccount.search([('account_id', 'not in', api_ids)])
+            if stale:
+                stale.unlink()
+
         if self.facebook_page_id:
             access_token = self.env['ir.config_parameter'].sudo()
             page_access_token = access_token.get_param('gl_facebook.api_key')
@@ -49,6 +105,8 @@ class Partner(models.Model):
                 'access_token': page_access_token,
             }
             url = f'https://graph.facebook.com/v22.0/{self.facebook_page_id}'
+            fetch_facebook_accounts()
+
             try:
                 response = requests.get(url, params=params)
                 response.raise_for_status()  # Raise an exception if the request returns an HTTP error
@@ -57,10 +115,15 @@ class Partner(models.Model):
                     'facebook_page_access_token': data['access_token'],
                 })
                 print(data)
-                if 'instagram_business_account' in data :
+
+                if 'instagram_business_account' in data:
                     self.write({
+
                         'instagram_page_id': data['instagram_business_account']['id'],
                     })
+
+
+
             except requests.exceptions.RequestException as e:
                 raise ValidationError(f"Error al obtener Tokens de Facebook: {response.json()}")
 
@@ -115,7 +178,6 @@ class Partner(models.Model):
         tiktok_client = parametros.get_param('tiktok_key')
         tiktok_secret = parametros.get_param('tiktok_secret')
 
-
         # Supongamos que guardaste el tiempo en que se emitió y la duración en segundos
         issued_at = self.tiktok_issued_at
         expires_in = self.tiktok_expires_in
@@ -124,6 +186,7 @@ class Partner(models.Model):
         # Calcula el tiempo de expiración y el umbral de renovación
         expiration_time = issued_at + expires_in
         renewal_threshold = expiration_time - days
+        print(self.company_name)
         # Verifica si ya se necesita renovar
         if time.time() >= renewal_threshold:
             url = "https://open.tiktokapis.com/v2/oauth/token/"
@@ -177,6 +240,7 @@ class Partner(models.Model):
 def generate_random_string(length):
     characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
     return ''.join(random.choice(characters) for _ in range(length))
+
 
 def generate_code_challenge():
     code_verifier = generate_random_string(60)

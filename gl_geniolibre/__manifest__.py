@@ -30,9 +30,10 @@
         'views/gl_res_partner.xml',
         'views/gl_project_task.xml',
         'views/gl_project_project.xml',
+        'views/gl_social_monthly_metrics.xml',
 
         'report/gl_print_task.xml',
-        'report/gl_print_tasks_template.xml',
+        'report/gl_print_marketing_report.xml',
 
         'cron/gl_cron_jobs.xml',
     ],

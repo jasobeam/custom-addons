@@ -68,13 +68,15 @@ class project_task(models.Model):
         string='Redes Sociales',
     )
 
+    hashtags=fields.Text(string="Hashtags")
+    texto_en_diseno = fields.Html(string="Texto en diseño")
+
     partner_id = fields.Many2one('res.partner')
 
     partner_page_access_token = fields.Char(related="partner_id.facebook_page_access_token")
     partner_facebook_page_id = fields.Char(related="partner_id.facebook_page_id")
     partner_instagram_page_id = fields.Char(related="partner_id.instagram_page_id")
     partner_tiktok_access_token = fields.Char(related="partner_id.tiktok_access_token")
-    partner_tiktok_refresh_token = fields.Char(related="partner_id.tiktok_refresh_token")
 
     post_estado = fields.Char(string="FB Status", default="Pendiente")
     fb_post_id = fields.Char(string="Facebook Post ID")
@@ -86,9 +88,16 @@ class project_task(models.Model):
     tiktok_post_id = fields.Char(string="TikTok Post ID")
     tiktok_post_url = fields.Char(string="TikTok Post URL")
 
+    def copy(self, default=None):
+        self.ensure_one()
+        if self.project_id.project_type == 'marketing':
+            raise ValidationError("No se puede duplicar tareas de proyectos de tipo Marketing.")
+        return super(project_task, self).copy(default)
+
     def write(self, vals):
 
         for record in self:
+            print(self.state)
             if self.state != "03_approved":
                 return super().write(vals)
 
@@ -232,7 +241,6 @@ class project_task(models.Model):
         aws_api = parametros.get_param('gl_aws.api_key')
         aws_secret = parametros.get_param('gl_aws.secret')
         user_access_token = parametros.get_param('gl_facebook.api_key')
-
 
         # Funciones
         def upload_images_to_facebook():
