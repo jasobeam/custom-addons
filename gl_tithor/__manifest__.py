@@ -24,7 +24,8 @@
 
     # always loaded
     'data': [
-        # 'views/gl_sale_order_line_views.xml',
+        'security/ir.model.access.csv',
+        
         'views/gl_res_config_settings_views.xml',
         'views/gl_sale_order_line_views.xml',
 
