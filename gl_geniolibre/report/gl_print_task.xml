@@ -29,24 +29,12 @@
                     <hr/>
                     <div class="page mt-3">
                         <td name="td_name">
-                            <p>
-                                <strong>Texto en Descripción:</strong>
-                            </p>
-                            <div style = "margin-left:30px;">
-                                <p t-field="o.description"/>
-                            </div>
-                            <p>
-                                <strong>Hashtags:</strong>
-                            </p>
-                            <div style = "margin-left:30px;">
-                                <p t-field="o.hashtags"/>
-                            </div>
-                            <p>
-                                <strong>Texto en Diseño:</strong>
-                            </p>
-                            <div style = "margin-left:30px;">
-                                <p t-field="o.texto_en_diseno"/>
-                            </div>
+                            <p><strong>Texto en Descripción:</strong></p>
+                            <p t-field="o.description"/>
+                            <p><strong>Hashtags:</strong></p>
+                            <p t-field="o.hashtags"/>
+                            <p><strong>Texto en Diseño:</strong></p>
+                            <p t-field="o.texto_en_diseno"/>
                         </td>
                     </div>
                     <div class="footer" align="center">
