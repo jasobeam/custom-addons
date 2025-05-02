@@ -12,16 +12,17 @@
                         <div class="col-xs-12  row o_settings_container">
                             <label class="col-lg-3" string="Facebook App Secret" for="facebook_app_secret"/>
                             <field name="facebook_app_secret" title="APP Key"/>
-                            <label class="col-lg-3 mt-3" string="Facebook Client ID" for="facebook_app_id" />
+                            <label class="col-lg-3 mt-3" string="Facebook Client ID" for="facebook_app_id"/>
                             <field name="facebook_app_id" title="APP Key"/>
-                            <label class="col-lg-3 mt-3" string="Facebook Redirect URI" for="facebook_redirect_uri" />
+                            <label class="col-lg-3 mt-3" string="Facebook Redirect URI" for="facebook_redirect_uri"/>
                             <field name="facebook_redirect_uri" title="APP Key"/>
                             <label class="col-lg-3 mt-3" string="Facebook Page Access Tokens" for="user_access_token"/>
                             <field name="user_access_token" title="APP Key"/>
-                            <div class="content-group" >
+                            <div class="content-group">
                                 <div class="mt8">
-                                    <button string="Connectar con Facebook" icon="fa-facebook" type="object" name="conectar_facebook"
-                                    class="btn-primary"/>
+                                    <button string="Connectar con Facebook" icon="fa-facebook" type="object"
+                                            name="conectar_facebook"
+                                            class="btn-primary"/>
                                 </div>
                             </div>
 
@@ -44,6 +45,40 @@
                             <label class="col-lg-3 mt-3" string="Redirect URI" for="tiktok_redirect_uri"/>
                             <field name="tiktok_redirect_uri" title="Client SECRET"/>
 
+                        </div>
+                    </block>
+                    <block title="Google Authentication">
+                        <div class="col-xs-12 row o_settings_container">
+                            <label class="col-lg-3" string="Google Ads Manager Account" for="google_client_id"/>
+                            <field name="google_login_customer_id" title="Ads Manager Account"/>
+
+                            <label class="col-lg-3" string="Google Developer Token" for="google_client_id"/>
+                            <field name="google_developer_token" title="Developer Token"/>
+
+                            <label class="col-lg-3" string="Google Client ID" for="google_client_id"/>
+                            <field name="google_client_id" title="Google Client ID"/>
+
+                            <label class="col-lg-3 mt-3" string="Google Client Secret" for="google_client_secret"/>
+                            <field name="google_client_secret" title="Google Client Secret"/>
+
+                            <label class="col-lg-3 mt-3" string="Google Redirect URI" for="google_redirect_uri"/>
+                            <field name="google_redirect_uri" title="Redirect URI"/>
+
+                            <label class="col-lg-3 mt-3" string="Google Access Token" for="google_redirect_uri"/>
+                            <field name="google_access_token" title="Access Token"/>
+
+                            <label class="col-lg-3 mt-3" string="Google Refresh Token" for="google_redirect_uri"/>
+                            <field name="google_refresh_token" title="Refresh Token"/>
+
+                            <div class="content-group mt-3">
+                                <div class="mt8">
+                                    <button string="Conectar con Google"
+                                            icon="fa-google"
+                                            type="object"
+                                            name="conectar_google"
+                                            class="btn-primary"/>
+                                </div>
+                            </div>
                         </div>
                     </block>
                 </app>

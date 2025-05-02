@@ -4,6 +4,7 @@ import requests
 import base64  # Import the base64 module
 import boto3
 import time
+import json
 
 from datetime import datetime, timedelta
 from odoo.exceptions import ValidationError
@@ -127,16 +128,6 @@ class project_task(models.Model):
             if current_tipo == "otro":
                 return
 
-            # Validate fecha_publicacion
-            # if current_fecha:
-            #     if isinstance(current_fecha, str):
-            #         current_fecha = fields.Datetime.from_string(current_fecha)
-            #     min_datetime = datetime.now() + timedelta(minutes=30)
-            #     if current_fecha < min_datetime:
-            #         raise ValidationError(
-            #             "La fecha de publicación debe ser al menos 30 minutos después de la hora actual."
-            #         )
-
             # Validate attachments exist
             if len(current_attachments) < 1:
                 raise ValidationError("Debe seleccionar un archivo para publicar")
@@ -181,46 +172,91 @@ class project_task(models.Model):
 
         # Get Facebook Permalink
         if self.fb_post_id:
-            self.fb_post_url = 'https://www.facebook.com/' + self.fb_post_id
+            if not self.fb_post_url: self.fb_post_url= 'https://www.facebook.com/' + self.fb_post_id
 
         # Get Instagram Permalink
         if self.inst_post_id:
-            url = f"https://graph.facebook.com/v22.0/{self.inst_post_id}"
-            # Parameters
-            params = {
-                'fields': 'permalink',
-                'access_token': self.partner_page_access_token
-            }
-            response = requests.get(url, params=params)
-            if response.status_code != 200:
-                error_message.append(response.json())
-            else:
-                data = response.json()
-                self.inst_post_url = data.get('permalink')
+            if not self.inst_post_url:
+                url = f"https://graph.facebook.com/v22.0/{self.inst_post_id}"
+                # Parameters
+                params = {
+                    'fields': 'permalink',
+                    'access_token': self.partner_page_access_token
+                }
+                response = requests.get(url, params=params)
+                if response.status_code != 200:
+                    error_message.append(response.json())
+                else:
+                    data = response.json()
+                    self.inst_post_url = data.get('permalink')
 
         # Get TIKTOK Permalink
-        # if self.tiktok_post_id:
-        # url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
-        # headers = {
-        #     'Authorization': f'Bearer {self.partner_tiktok_access_token}',
-        #     'Content-Type': 'application/json',
-        # }
-        # # data = {
-        # #     "filters": {
-        # #         "video_ids": [
-        # #             "7488853498180782135"                    ]
-        # #     }
-        # # }
-        # data = {
-        #     "publish_id": self.tiktok_post_id,
-        # }
-        # response = requests.get(url, headers=headers, data=data)
-        # if response.status_code != 200:
-        #     error_message.append(response.json())
-        # else:
-        #     data = response.json()
-        #     self.tiktok_post_url = data.get('permalink')
+        if self.tiktok_post_id:
+            if not self.tiktok_post_url:
+                error_message = []
+                # Paso 1: Obtener el video_id desde el publish_id
+                status_url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
+                headers = {
+                    'Authorization': f'Bearer {self.partner_tiktok_access_token}',
+                    'Content-Type': 'application/json',
+                }
+                data = {
+                    "publish_id": self.tiktok_post_id,
+                }
+                response = requests.post(status_url, headers=headers, data=json.dumps(data))
+                if response.status_code != 200:
+                    error_message.append(response.json())
+                else:
+                    status_data = response.json()
+                    video_id = status_data.get("data", {}).get("publicaly_available_post_id")
+                    if not video_id:
+                        error_message.append("No se pudo obtener el video_id para esta publicación.")
 
+                # Paso2: Obtener el permalink del video
+                    # Campos a solicitar
+                    # 2. Limpiar el video_id (por si viene con corchetes o espacios)
+                    video_id=str(video_id)
+                    video_id = video_id.strip("[]")
+                       # 3. Construir solicitud
+                    url = "https://open.tiktokapis.com/v2/video/query/"
+                    headers = {
+                        'Authorization': f'Bearer {self.partner_tiktok_access_token}',
+                        'Content-Type': 'application/json'
+                    }
+                    params = {'fields': "share_url"}
+                    payload = {
+                        "filters": {
+                            "video_ids": [str(video_id)]
+                        }
+                    }
+
+                    # 4. Enviar y procesar respuesta
+                    response = requests.post(
+                        url,
+                        headers=headers,
+                        params=params,
+                        json=payload,
+                        timeout=10
+                    )
+                    if response.status_code == 200:
+                        # Extraer el permalink
+                        video_data = response.json().get('data', {}).get('videos', [])
+                        if video_data:
+                            self.tiktok_post_url = video_data[0].get('share_url')
+
+                    else:
+                        error = response.json().get('error', {})
+                        error_message.append(f"Error TikTok API: {error.get('message')}")
+                        return None
+
+        # Notificaciones
+        if error_message:
+            print("TikTok errors:", error_message)
+            show_notification(error_message, "warning")
+        else:
+            show_notification("Las URL de las publicaciones fueron actualizadas", "success")
+
+        # Notificaciones
         if error_message:
             show_notification(error_message, "warning")
         else:
@@ -241,6 +277,12 @@ class project_task(models.Model):
         aws_api = parametros.get_param('gl_aws.api_key')
         aws_secret = parametros.get_param('gl_aws.secret')
         user_access_token = parametros.get_param('gl_facebook.api_key')
+
+        plain_description = html2plaintext(self.description or '')
+        plain_hashtags = html2plaintext(self.hashtags or '')
+
+        # Combinar ambos textos con un separador
+        combined_text = f"{plain_description}\n\n{plain_hashtags}"
 
         # Funciones
         def upload_images_to_facebook():
@@ -270,7 +312,7 @@ class project_task(models.Model):
             if self.tipo == "feed":
                 params = {
                     'access_token': self.partner_page_access_token,
-                    'message': html2plaintext(self.description),
+                    'message': html2plaintext(combined_text),
                     'attached_media': str([{'media_fbid': media_id} for media_id in media_ids]),
                     'published': True,  # Set to False for scheduling
                 }
@@ -314,7 +356,7 @@ class project_task(models.Model):
                     "video_id": video_id,
                     "upload_phase": "finish",
                     "video_state": "PUBLISHED",
-                    "description": html2plaintext(self.description),
+                    "description": html2plaintext(combined_text),
                 }
                 response = requests.post(url, params=params)
                 response_data = response.json()
@@ -333,7 +375,7 @@ class project_task(models.Model):
                 if self.tipo == "feed":
                     container_params = {
                         'access_token': self.partner_page_access_token,
-                        'caption': html2plaintext(self.description),
+                        'caption': html2plaintext(combined_text),
                         'image_url': media_urls[0],  # For images
                         'published': True,  # Important for scheduling
                     }
@@ -341,7 +383,7 @@ class project_task(models.Model):
                     if self.tipo == "video_stories":
                         container_params = {
                             'access_token': self.partner_page_access_token,
-                            'caption': html2plaintext(self.description),
+                            'caption': html2plaintext(combined_text),
                             'video_url': media_urls[0],  # For images
                             'published': True,  # Important for scheduling,
                             'media_type': 'STORIES'
@@ -349,7 +391,7 @@ class project_task(models.Model):
                     else:
                         container_params = {
                             'access_token': self.partner_page_access_token,
-                            'caption': html2plaintext(self.description),
+                            'caption': html2plaintext(combined_text),
                             'video_url': media_urls[0],  # For images
                             'published': True,  # Important for scheduling,
                             'media_type': 'REELS'
@@ -394,7 +436,7 @@ class project_task(models.Model):
                 carousel_params = {
                     'media_type': 'CAROUSEL',
                     'children': ",".join(carousel_ids),  # Join all IDs with commas
-                    'caption': html2plaintext(self.description),
+                    'caption': html2plaintext(combined_text),
                     'access_token': self.partner_page_access_token
                 }
 
@@ -426,7 +468,7 @@ class project_task(models.Model):
 
             data = {
                 "post_info": {
-                    "title": html2plaintext(self.description),
+                    "title": html2plaintext(combined_text),
                     "privacy_level": "SELF_ONLY",
                     "disable_duet": False,
                     "disable_comment": False,

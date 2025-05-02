@@ -3,13 +3,35 @@ import base64
 import hashlib
 import random
 import time
-from datetime import datetime
-
 import requests
 
+from datetime import datetime
+from google.ads.googleads.client import GoogleAdsClient
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
+class GoogleAdsAccount(models.Model):
+    _name = 'google.ads.account'
+    _description = 'Cuenta de Google Ads'
+
+    name = fields.Char("Nombre")
+    account_id = fields.Char("ID de Cuenta", required=True)
+
+
+class GoogleSearchConsoleSite(models.Model):
+    _name = 'google.search.console.site'
+    _description = 'Sitio de Google Search Console'
+
+    name = fields.Char("Nombre del sitio")
+    site_url = fields.Char("URL del Sitio", required=True)
+
+
+class GoogleAnalyticsProperty(models.Model):
+    _name = 'google.analytics.property'
+    _description = 'Propiedad de Google Analytics GA4'
+
+    name = fields.Char("Nombre de la propiedad")
+    property_id = fields.Char("ID de Propiedad", required=True)
 
 class FacebookAdAccount(models.Model):
     _name = 'facebook.ad.account'
@@ -53,7 +75,19 @@ class Partner(models.Model):
         'facebook.ad.account',
         string='Cuenta publicitaria de Facebook'
     )
+    # Google Ads
+    google_ads_account = fields.Many2one('google.ads.account', string='Cuenta de Google Ads')
+    id_google_ads_account = fields.Char(string="ID Cuenta Google Ads", related='google_ads_account.account_id',
+                                        readonly=True, store=True)
 
+    # Search Console
+    gsc_site = fields.Many2one('google.search.console.site', string='Sitio Search Console')
+    gsc_site_url = fields.Char(string="URL Search Console", related='gsc_site.site_url', readonly=True, store=True)
+
+    # GA4
+    ga4_property = fields.Many2one('google.analytics.property', string='Propiedad GA4')
+    ga4_property_id = fields.Char(string="ID Propiedad GA4", related='ga4_property.property_id', readonly=True,
+                                  store=True)
 
 
     def facebook_obtener_datos(self):
@@ -155,7 +189,7 @@ class Partner(models.Model):
             params = {
                 'client_key': tiktok_client,
                 'response_type': 'code',
-                'scope': 'user.info.basic,video.upload,video.publish',
+                'scope': 'user.info.basic,video.upload,video.publish,video.list,user.info.stats',
                 'redirect_uri': tiktok_redirect,
                 'state': self.id,
                 'code_challenge': self.code_challenge,
@@ -236,6 +270,123 @@ class Partner(models.Model):
                 }
             }
 
+    def _get_google_ads_client(self):
+        config_param = self.env["ir.config_parameter"].sudo()
+        config = {
+            "developer_token": config_param.get_param("gl_google.developer_token"),
+            "client_id": config_param.get_param("gl_google.client_id"),
+            "client_secret": config_param.get_param("gl_google.client_secret"),
+            "refresh_token": config_param.get_param("gl_google.refresh_token"),
+            "login_customer_id": config_param.get_param("gl_google.login_customer_id"),  # ← ahora dinámico
+            "use_proto_plus": True,
+        }
+        return GoogleAdsClient.load_from_dict(config)
+
+    def google_obtener_datos(self):
+        self.env['google.ads.account'].search([]).unlink()
+        self.env['google.search.console.site'].search([]).unlink()
+        self.env['google.analytics.property'].search([]).unlink()
+        client = self._get_google_ads_client()
+        ga_service = client.get_service("GoogleAdsService")
+
+        query = """
+                    SELECT
+                        customer_client.client_customer,
+                        customer_client.descriptive_name,
+                        customer_client.level,
+                        customer_client.status
+                    FROM customer_client
+                    WHERE customer_client.level = 1
+                      AND customer_client.status = 'ENABLED'
+                """
+
+        login_customer_id = self.env["ir.config_parameter"].sudo().get_param("gl_google.login_customer_id")
+        response = ga_service.search(customer_id=login_customer_id, query=query)
+
+        account_model = self.env["google.ads.account"].sudo()
+        print(response)
+        for row in response:
+            print(row)
+            customer = row.customer_client
+            print("==== Cuenta ====")
+            print("ID:", customer.client_customer.split("/")[-1])
+            print("Nombre:", customer.descriptive_name)
+            print("Nivel:", customer.level)
+            print("Estado:", customer.status)
+
+            customer_id = customer.client_customer.split("/")[-1]
+            name = customer.descriptive_name
+            level = customer.level
+            status = customer.status
+            print("####################")
+            if not account_model.search([("account_id", "=", customer_id)]):
+                account_model.create({
+                    "name": name or f"Cuenta {customer_id}",
+                    "account_id": customer_id,
+                })
+
+        # for partner in self:
+        #     # Borrar registros antiguos
+        #     self.env['google.ads.account'].search([]).unlink()
+        #     self.env['google.search.console.site'].search([]).unlink()
+        #     self.env['google.analytics.property'].search([]).unlink()
+        #
+        #     # ---------------------
+        #     # Google Ads API
+        #     # ---------------------
+        #     # 1. Obtener credenciales
+        #     access_token = self.env['ir.config_parameter'].sudo().get_param('gl_google.access_token')
+        #     developer_token = "NgJ6-q9NbZ8UZrfJPA9waQ"
+        #
+        #
+        #     if not access_token or not developer_token:
+        #         raise ValidationError("Faltan credenciales (access_token o developer_token)")
+        #
+        #     # 2. Configurar solicitud
+        #     headers = {
+        #         "Authorization": f"Bearer {access_token}",
+        #         "developer-token": developer_token,
+        #         "Content-Type": "application/json"
+        #     }
+        #
+        #     # 3. URL CORRECTA (con guión bajo)
+        #     url = "https://googleads.googleapis.com/v14/customers:listAccessibleCustomers"
+        #
+        #     response = requests.get(url, headers=headers)
+        #     response.raise_for_status()  # Verificar errores HTTP
+        #
+        #     data = response.json()
+        #
+        #     # 4. Procesar respuesta
+        #     return [{
+        #         "resource_name": resource,
+        #         "customer_id": resource.split("/")[-1]
+        #     } for resource in data.get("resourceNames", [])]
+        #
+        #     # ---------------------
+        #     # Google Analytics API (GA4)
+        #     # ---------------------
+        #     url_ga4 = "https://analyticsadmin.googleapis.com/v1beta/accounts"
+        #     res_accounts = requests.get(url_ga4, headers=headers)
+        #     if res_accounts.status_code != 200:
+        #         raise ValidationError(f"Error al obtener cuentas de GA4:\n{res_accounts.text}")
+        #     accounts = res_accounts.json().get('accounts', [])
+        #
+        #     for acc in accounts:
+        #         account_id = acc['name'].split('/')[-1]
+        #         url_props = f"https://analyticsadmin.googleapis.com/v1beta/accounts/{account_id}/properties"
+        #         res_props = requests.get(url_props, headers=headers)
+        #         if res_props.status_code != 200:
+        #             raise ValidationError(
+        #                 f"Error al obtener propiedades de GA4 para la cuenta {account_id}:\n{res_props.text}")
+        #         props = res_props.json().get('properties', [])
+        #
+        #         for prop in props:
+        #             prop_id = prop.get('name', '').split('/')[-1]
+        #             self.env['google.analytics.property'].create({
+        #                 'name': prop.get('displayName', prop_id),
+        #                 'property_id': prop_id,
+        #             })
 
 def generate_random_string(length):
     characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'

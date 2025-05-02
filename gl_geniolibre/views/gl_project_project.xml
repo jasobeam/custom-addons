@@ -46,7 +46,7 @@
                             string=""
                             title="Actualizar campañas"
                             invisible="project_type != 'marketing'"/>
-                    <button name="create_marketing_report"
+                    <button name="action_generate_report"
                             string="Reporte de Marketing"
                             type="object"
                             class="btn-success" invisible="project_type != 'marketing'"/>

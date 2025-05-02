@@ -43,6 +43,16 @@
                                         name="tiktok_renew_token" class="btn-success mr4"
                                         invisible="not tiktok_auth_code"/>
                             </group>
+                            <group string="Google API">
+                                <field name="id_google_ads_account"/>
+                                <field name="gsc_site_url"/>
+                                <field name="ga4_property_id"/>
+                                <field name="google_ads_account"/>
+                                <field name="gsc_site"/>
+                                <field name="ga4_property"/>
+                                <button name="google_obtener_datos" string="Obtener Datos Google" type="object"
+                                        class="btn-success mr4"/>
+                            </group>
 
                         </group>
                     </page>
