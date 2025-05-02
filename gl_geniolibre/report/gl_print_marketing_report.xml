@@ -2,22 +2,364 @@
 <odoo>
     <record id="gl_print_marketing_report" model="ir.actions.report">
         <field name="name">Reporte de Marketing</field>
-        <field name="model">report.wizard</field>
-        <field name="report_type">qweb-html</field>
+        <field name="model">project.project</field>
+        <field name="report_type">qweb-pdf</field>
         <field name="report_name">gl_geniolibre.gl_print_marketing_report_template</field>
         <field name="report_file">gl_geniolibre.gl_print_marketing_report_template</field>
         <field name="print_report_name">'Reporte de Marketing'</field>
-        <field name="binding_model_id" ref="model_project_project"/>
+        <field name="binding_model_id" ref="project.model_project_project"/>
         <field name="binding_type">report</field>
     </record>
-    <template id="gl_print_marketing_report_template">
-        <t t-foreach="docs" t-as="o">
-            <t t-call="web.html_container">
-                <t t-call="web.basic_layout">
 
+    <template id="gl_print_marketing_report_template">
+        <t t-call="web.html_container">
+            <t t-call="web.basic_layout">
+                <t t-foreach="docs" t-as="o">
+                    <div class="page">
+
+                        <h2>Marketing Report</h2>
+                        <p>
+                            <strong>Period:</strong>
+                            <t t-esc="o.date_start"/>
+                            -
+                            <t t-esc="o.date_end"/>
+                        </p>
+
+                        <!-- Facebook Metrics -->
+                        <h3>Facebook Metrics</h3>
+                        <table class="table table-condensed">
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Page Impressions</td>
+                                    <td>
+                                        <t t-esc="o.page_impressions"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Page Views Total</td>
+                                    <td>
+                                        <t t-esc="o.page_views_total"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Page Fans</td>
+                                    <td>
+                                        <t t-esc="o.page_fans"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Page Fan Adds</td>
+                                    <td>
+                                        <t t-esc="o.page_fan_adds"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Page Fan Removes</td>
+                                    <td>
+                                        <t t-esc="o.page_fan_removes"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Page Impressions Unique</td>
+                                    <td>
+                                        <t t-esc="o.page_impressions_unique"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Page Post Engagements</td>
+                                    <td>
+                                        <t t-esc="o.page_post_engagements"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Page Posts Impressions</td>
+                                    <td>
+                                        <t t-esc="o.page_posts_impressions"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Post Reactions Like Total</td>
+                                    <td>
+                                        <t t-esc="o.post_reactions_like_total"/>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Top 5 Facebook Posts by Reach -->
+                        <h3>Top 5 Facebook Posts by Reach</h3>
+                        <table class="table table-condensed">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Date</th>
+                                    <th>Reach</th>
+                                    <th>Organic Reach</th>
+                                    <th>Paid Reach</th>
+                                    <th>Reactions</th>
+                                    <th>Comments</th>
+                                    <th>Shares</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="o.facebook_top_5_posts" t-as="post">
+                                    <tr>
+                                        <td>
+                                            <t t-esc="post.type"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.created_time"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.reach"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.organic_reach"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.paid_reach"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.reactions"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.comments"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.shares"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+
+                        <!-- Instagram Metrics -->
+                        <h3>Instagram Metrics</h3>
+                        <table class="table table-condensed">
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Reach</td>
+                                    <td>
+                                        <t t-esc="o.instagram_reach"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Profile Views</td>
+                                    <td>
+                                        <t t-esc="o.instagram_profile_views"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Accounts Engaged</td>
+                                    <td>
+                                        <t t-esc="o.instagram_accounts_engaged"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Total Interactions</td>
+                                    <td>
+                                        <t t-esc="o.instagram_total_interactions"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Likes</td>
+                                    <td>
+                                        <t t-esc="o.instagram_likes"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Comments</td>
+                                    <td>
+                                        <t t-esc="o.instagram_comments"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Shares</td>
+                                    <td>
+                                        <t t-esc="o.instagram_shares"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Saves</td>
+                                    <td>
+                                        <t t-esc="o.instagram_saves"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Replies</td>
+                                    <td>
+                                        <t t-esc="o.instagram_replies"/>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Top 5 Instagram Posts by Reach -->
+                        <h3>Top 5 Instagram Posts by Reach</h3>
+                        <table class="table table-condensed">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Date</th>
+                                    <th>Reach</th>
+                                    <th>Organic Reach</th>
+                                    <th>Paid Reach</th>
+                                    <th>Reactions</th>
+                                    <th>Comments</th>
+                                    <th>Shares</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="o.instagram_top_5_posts" t-as="post">
+                                    <tr>
+                                        <td>
+                                            <t t-esc="post.type"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.created_time"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.reach"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.organic_reach"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.paid_reach"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.reactions"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.comments"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="post.shares"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+
+                        <!-- Meta Ads Metrics -->
+                        <h3>Meta Ads Metrics</h3>
+                        <table class="table table-condensed">
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Impressions</td>
+                                    <td>
+                                        <t t-esc="o.meta_ads_impressions"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Reach</td>
+                                    <td>
+                                        <t t-esc="o.meta_ads_reach"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Clicks</td>
+                                    <td>
+                                        <t t-esc="o.meta_ads_clicks"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Cost Per Click</td>
+                                    <td>
+                                        <t t-esc="o.meta_ads_cpc"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Conversion Rate</td>
+                                    <td>
+                                        <t t-esc="o.meta_ads_conversion_rate"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>CTR</td>
+                                    <td>
+                                        <t t-esc="o.meta_ads_ctr"/>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Meta Ads Campaigns -->
+                        <h3>Meta Ads Campaigns</h3>
+                        <table class="table table-condensed">
+                            <thead>
+                                <tr>
+                                    <th>Campaign ID</th>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>Effective Status</th>
+                                    <th>Impressions</th>
+                                    <th>Clicks</th>
+                                    <th>Spend</th>
+                                    <th>Reach</th>
+                                    <th>CTR</th>
+                                    <th>Cost per Conversion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="o.meta_ads_campaigns" t-as="campaign">
+                                    <tr>
+                                        <td>
+                                            <t t-esc="campaign.campaign_id"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="campaign.name"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="campaign.status"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="campaign.effective_status"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="campaign.impressions"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="campaign.clicks"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="campaign.spend"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="campaign.reach"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="campaign.ctr"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="campaign.cost_per_conversion"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
                 </t>
+
             </t>
         </t>
     </template>
-
 </odoo>
