@@ -19,7 +19,7 @@
                              t-att-src="image_data_uri(o.partner_id.image_256)"
                              alt="Company Logo" style="max-height: 25mm; width: auto; object-fit: contain;"/>
                     </div>
-                    <hr/>
+
                     <div class="page mt-3">
                         <h4 t-field="o.name" align="center"/>
                         <strong>
@@ -28,19 +28,34 @@
                                       t-options='{"widget": "datetime","format": "d MMMM - HH:MM"}'/>
                             </p>
                         </strong>
+                        <hr/>
                         <td name="td_name">
-                            <p>
+                            <!-- Título con margin-top: 5mm y sin sangría -->
+                            <p style="margin: 5mm 0 0 0;">  <!-- margin-top: 5mm, resto 0 -->
                                 <strong>Texto en Descripción:</strong>
                             </p>
-                            <p t-field="o.description"/>
-                            <p>
+                            <!-- Contenido con sangría de 10mm -->
+                            <div style="margin-left: 10mm;">
+                                <p t-field="o.description" style="margin: 0;"/>
+                            </div>
+
+                            <!-- Título con margin-top: 5mm y sin sangría -->
+                            <p style="margin: 5mm 0 0 0;">
                                 <strong>Hashtags:</strong>
                             </p>
-                            <p t-field="o.hashtags"/>
-                            <p>
+                            <!-- Contenido con sangría de 10mm -->
+                            <div style="margin-left: 10mm;">
+                                <p t-field="o.hashtags" style="margin: 0;"/>
+                            </div>
+
+                            <!-- Título con margin-top: 5mm y sin sangría -->
+                            <p style="margin: 5mm 0 0 0;">
                                 <strong>Texto en Diseño:</strong>
                             </p>
-                            <p t-field="o.texto_en_diseno"/>
+                            <!-- Contenido con sangría de 10mm -->
+                            <div style="margin-left: 10mm;">
+                                <p t-field="o.texto_en_diseno" style="margin: 0;"/>
+                            </div>
                         </td>
                     </div>
                     <div class="footer" align="center">
