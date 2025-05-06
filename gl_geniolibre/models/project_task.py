@@ -284,6 +284,8 @@ class project_task(models.Model):
         formatted_description = '\n\n'.join(paragraphs)
 
         combined_text = f"{formatted_description}\n\n{plain_hashtags}"
+        print(combined_text)
+        exit()
         # Funciones
         def upload_images_to_facebook():
             """
@@ -313,7 +315,7 @@ class project_task(models.Model):
             if self.tipo == "feed":
                 params = {
                     'access_token': self.partner_page_access_token,
-                    'message': html2plaintext(combined_text),
+                    'message': combined_text,
                     'attached_media': str([{'media_fbid': media_id} for media_id in media_ids]),
                     'published': True,  # Set to False for scheduling
                 }
@@ -357,7 +359,7 @@ class project_task(models.Model):
                     "video_id": video_id,
                     "upload_phase": "finish",
                     "video_state": "PUBLISHED",
-                    "description": html2plaintext(combined_text),
+                    "description": combined_text,
                 }
                 response = requests.post(url, params=params)
                 response_data = response.json()
@@ -376,7 +378,7 @@ class project_task(models.Model):
                 if self.tipo == "feed":
                     container_params = {
                         'access_token': self.partner_page_access_token,
-                        'caption': html2plaintext(combined_text),
+                        'caption': combined_text,
                         'image_url': media_urls[0],  # For images
                         'published': True,  # Important for scheduling
                     }
@@ -384,7 +386,7 @@ class project_task(models.Model):
                     if self.tipo == "video_stories":
                         container_params = {
                             'access_token': self.partner_page_access_token,
-                            'caption': html2plaintext(combined_text),
+                            'caption': combined_text,
                             'video_url': media_urls[0],  # For images
                             'published': True,  # Important for scheduling,
                             'media_type': 'STORIES'
@@ -392,7 +394,7 @@ class project_task(models.Model):
                     else:
                         container_params = {
                             'access_token': self.partner_page_access_token,
-                            'caption': html2plaintext(combined_text),
+                            'caption': combined_text,
                             'video_url': media_urls[0],  # For images
                             'published': True,  # Important for scheduling,
                             'media_type': 'REELS'
@@ -436,7 +438,7 @@ class project_task(models.Model):
                 carousel_params = {
                     'media_type': 'CAROUSEL',
                     'children': ",".join(carousel_ids),  # Join all IDs with commas
-                    'caption': html2plaintext(combined_text),
+                    'caption': combined_text,
                     'access_token': self.partner_page_access_token
                 }
 
@@ -468,7 +470,7 @@ class project_task(models.Model):
 
             data = {
                 "post_info": {
-                    "title": html2plaintext(combined_text),
+                    "title": combined_text,
                     "privacy_level": "SELF_ONLY",
                     "disable_duet": False,
                     "disable_comment": False,
