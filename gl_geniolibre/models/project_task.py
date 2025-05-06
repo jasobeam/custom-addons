@@ -284,8 +284,6 @@ class project_task(models.Model):
         formatted_description = '\n\n'.join(paragraphs)
 
         combined_text = f"{formatted_description}\n\n{plain_hashtags}"
-        print(combined_text)
-        exit()
         # Funciones
         def upload_images_to_facebook():
             """
