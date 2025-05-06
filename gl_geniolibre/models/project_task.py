@@ -98,7 +98,6 @@ class project_task(models.Model):
     def write(self, vals):
 
         for record in self:
-            print(self.state)
             if self.state != "03_approved":
                 return super().write(vals)
 
@@ -251,7 +250,6 @@ class project_task(models.Model):
 
         # Notificaciones
         if error_message:
-            print("TikTok errors:", error_message)
             show_notification(error_message, "warning")
         else:
             show_notification("Las URL de las publicaciones fueron actualizadas", "success")
@@ -281,9 +279,13 @@ class project_task(models.Model):
         plain_description = html2plaintext(self.description or '')
         plain_hashtags = html2plaintext(self.hashtags or '')
 
-        # Combinar ambos textos con un separador
-        combined_text = f"{plain_description}\n\n{plain_hashtags}"
+        # Normalizar saltos de línea y asegurar doble espacio entre párrafos
+        paragraphs = [p.strip() for p in plain_description.split('\n') if p.strip()]
+        formatted_description = '\n\n'.join(paragraphs)
 
+        combined_text = f"{formatted_description}\n\n{plain_hashtags}"
+        print(combined_text)
+        exit()
         # Funciones
         def upload_images_to_facebook():
             """
@@ -307,6 +309,7 @@ class project_task(models.Model):
                 raise ValidationError(f"Error al subir una imagen en Facebook: {response_upload.json()}")
 
         def publish_on_facebook(media_ids):
+
 
             url = f"{BASE_URL}/{self.partner_facebook_page_id}/{self.tipo}"
             if self.tipo == "feed":
@@ -413,7 +416,6 @@ class project_task(models.Model):
                 for _ in range(30):
                     status_response = requests.get(status_url, params=status_params)
                     status_data = status_response.json()
-                    print(status_data)
                     if status_data.get('status_code') == 'FINISHED':
                         break  # Video is ready
                     elif status_data.get('status_code') == 'ERROR':
@@ -532,7 +534,6 @@ class project_task(models.Model):
                     f"Error al publicar en Instagram: {ins_response}"
                 )
         #
-
         # Publicar en TikTok
         if 'TikTok' in self.red_social_ids.mapped('name'):
             if self.partner_tiktok_access_token and self.tipo == "video_reels":
