@@ -28,6 +28,7 @@
                         <field name="date_end" invisible="1" required="date_start"/>
                         <field name="partner_id"/>
                         <field name="report_generated"/>
+                        <field name="data_json"/>
                     </group>
 
                     <!-- Pestañas por red y tipo -->

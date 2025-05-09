@@ -23,8 +23,5 @@ class gl_social_reports(models.Model):
 
     # Metadata
     report_generated = fields.Boolean(string="Reporte generado", default=False)
-
-    @api.model_create_multi
-    def create(self, vals):
-        print("Hello")
+    data_json=fields.Text(string="Datos del reporte")
 
