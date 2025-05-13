@@ -17,7 +17,7 @@
                 })
                 record.message_post(body=error_message, message_type='comment')
         </field>
-        <field name="interval_number">30</field>
+        <field name="interval_number">15</field>
         <field name="interval_type">minutes</field> <!-- changed from 'hours' -->
         <field name="active">True</field>
 
@@ -35,6 +35,23 @@
         </field>
         <field name="interval_number">1</field>
         <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+    </record>
+    <record id="ir_cron_check_ins_processing" model="ir.cron">
+        <field name="name">GL Revisar publicaciones en proceso</field>
+        <field name="model_id" ref="model_project_task"/>
+        <field name="state">code</field>
+        <field name="code">
+            for record in model.search([('post_estado', '=', 'Procesando')]):
+            try:
+                record.revisar_post(from_cron=True)
+            except Exception as e:
+                error_message = f"Error al revisar el post: {str(e)}"
+                _logger.error(f"Error al revisar el post {record.id}: {e}")
+                record.message_post(body=error_message, message_type='comment')
+        </field>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
         <field name="active" eval="True"/>
     </record>
 </odoo>

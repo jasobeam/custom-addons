@@ -148,7 +148,6 @@ class Partner(models.Model):
                 self.write({
                     'facebook_page_access_token': data['access_token'],
                 })
-                print(data)
 
                 if 'instagram_business_account' in data:
                     self.write({
@@ -175,7 +174,6 @@ class Partner(models.Model):
 
         # Usage example:
         codigos = generate_code_challenge()
-        print(codigos)
         self.write({
             'code_verifier': codigos[0],
             'code_challenge': codigos[1],
@@ -220,7 +218,6 @@ class Partner(models.Model):
         # Calcula el tiempo de expiración y el umbral de renovación
         expiration_time = issued_at + expires_in
         renewal_threshold = expiration_time - days
-        print(self.company_name)
         # Verifica si ya se necesita renovar
         if time.time() >= renewal_threshold:
             url = "https://open.tiktokapis.com/v2/oauth/token/"
@@ -240,7 +237,6 @@ class Partner(models.Model):
             response_data = response.json()
             if response.status_code == 200:
                 data = response.json()
-                print(data)
                 self.write({
                     'tiktok_access_token': data.get('access_token'),
                     'tiktok_expires_in': data.get('expires_in'),
@@ -304,9 +300,7 @@ class Partner(models.Model):
         response = ga_service.search(customer_id=login_customer_id, query=query)
 
         account_model = self.env["google.ads.account"].sudo()
-        print(response)
         for row in response:
-            print(row)
             customer = row.customer_client
             print("==== Cuenta ====")
             print("ID:", customer.client_customer.split("/")[-1])

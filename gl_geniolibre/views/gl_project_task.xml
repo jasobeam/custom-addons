@@ -64,22 +64,18 @@
                                     confirm="¿Estas seguro de Publicar este Post?"/>
                             <button string="Cancelar" icon="fa-trash-o" type="object" name="cancelar_post"
                                     class="btn-danger mr4"
-                                    invisible="post_estado == 'Pendiente' or post_estado == 'Publicado' or tipo =='otro'"/>
+                                    invisible="post_estado == 'Pendiente' or post_estado == 'Publicado' or post_estado == 'Procesando' or tipo =='otro'"/>
                             <button string="Revisar" icon="fa-check" type="object" name="revisar_post"
                                     class="btn-success mr4"
-                                    invisible="post_estado != 'Publicado'"/>
+                                    invisible="post_estado == 'Pendiente' or post_estado == 'Programado'"/>
                         </div>
                     </div>
                 </xpath>
                 <xpath expr="//field[@name='tag_ids']" position="after">
-                    <field name="fb_post_url" widget="url" />
-                    <field name="inst_post_url" widget="url" />
-                    <field name="tiktok_post_url" widget="url"  />
-                    <field name="fb_post_id"  />
-                    <field name="fb_video_id"  />
-                    <field name="inst_post_id"  />
-                    <field name="tiktok_post_id"  />
-                    <field name="post_estado"/>
+                    <field name="fb_post_url" widget="url" invisible="not fb_post_url" readonly="1" text="Abrir Enlace"/>
+                    <field name="inst_post_url" widget="url" invisible="not inst_post_url" readonly="1" text="Abrir Enlace"/>
+                    <field name="tiktok_post_url" widget="url"  invisible="not tiktok_post_url" readonly="1" text="Abrir Enlace"/>
+                    <field name="post_estado" readonly="1"/>
                     <div class="d-flex justify-content-end o_state_container" invisible="not active">
                         <field name="state" widget="project_task_state_selection" class="o_task_state_widget"
                                string="Estado de la Tarea"/>

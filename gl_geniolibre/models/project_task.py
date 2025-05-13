@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-:
 import random
-import re, requests, base64, boto3, time, json
+import re, requests, base64, boto3, json
 
-from datetime import datetime, timedelta
+from datetime import datetime
+
 from odoo.exceptions import ValidationError
 from odoo.tools import html2plaintext
 from odoo import models, fields, api
@@ -59,23 +60,21 @@ class project_task(models.Model):
     partner_facebook_page_id = fields.Char(related="partner_id.facebook_page_id")
     partner_instagram_page_id = fields.Char(related="partner_id.instagram_page_id")
     partner_tiktok_access_token = fields.Char(related="partner_id.tiktok_access_token")
-    post_estado = fields.Char(string="FB Status", default="Pendiente")
+    post_estado = fields.Char(string="Estado de la Publicación", default="Pendiente")
     fb_post_id = fields.Char(string="Facebook Post ID")
-    fb_post_url = fields.Char(string="Facebook Post URL")
+    fb_post_url = fields.Char(string="Facebook URL")
     fb_video_id = fields.Char(string="Facebook Video ID")
-    fb_video_url = fields.Char(string="Facebook Video URL")
+    fb_video_url = fields.Char(string="Facebook URL")
     inst_post_id = fields.Char(string="Instagram Post ID")
-    inst_post_url = fields.Char(string="Instagram Post URL")
+    inst_post_url = fields.Char(string="Instagram URL")
     tiktok_post_id = fields.Char(string="TikTok Post ID")
-    tiktok_post_url = fields.Char(string="TikTok Post URL")
-
+    tiktok_post_url = fields.Char(string="TikTok URL")
 
     def copy(self, default=None):
         self.ensure_one()
         if self.project_id.project_type == 'marketing':
             raise ValidationError("No se puede duplicar tareas de proyectos de tipo Marketing.")
         return super(project_task, self).copy(default)
-
 
     def write(self, vals):
 
@@ -146,15 +145,58 @@ class project_task(models.Model):
         self.env.cr.commit()  # Guarda la transacción en la base de datos
         self.post_estado = "Pendiente"
 
-    def revisar_post(self):
+    def revisar_post(self, from_cron=False):
         error_message = []
         try:
-            # Get Facebook Permalink
-            if self.fb_post_id:
-                if not self.fb_post_url: self.fb_post_url = 'https://www.facebook.com/' + self.fb_post_id
+            if self.post_estado == "Procesando":
+                # 2. Check processing status
+                BASE_URL = 'https://graph.facebook.com/v22.0'
+                container_id = self.inst_post_id
+                status_url = f"https://graph.facebook.com/v22.0/{container_id}"
+                status_params = {
+                    "access_token": self.partner_page_access_token,
+                    "fields": "status_code"
+                }
+                status_response = requests.get(status_url, params=status_params)
+                status_data = status_response.json()
+                if status_data.get('status_code') == 'FINISHED':
+                    # For immediate publishing (without scheduling)
+                    publish_params = {
+                        'access_token': self.partner_page_access_token,
+                        'creation_id': self.inst_post_id,
+                    }
 
+                    publish_url = f"{BASE_URL}/{self.partner_instagram_page_id}/media_publish"
+                    publish_response = requests.post(publish_url, params=publish_params)
+
+                    if publish_response.status_code != 200:
+                        error_message = publish_response.json().get('error', {}).get('message', 'Unknown error')
+                        raise ValidationError(error_message)
+                    else:
+                        self.inst_post_id = publish_response.json().get('id')
+                        self.write({
+                            'post_estado': 'Publicado',
+                        })
+
+                elif status_data.get('status_code') == 'ERROR':
+                    self.write({
+                        'post_estado': 'Error',
+                        'state': '01_in_progress'
+                    })
+                    error_message = status_data
+                    raise ValidationError(error_message)
+                else:
+                    raise ValidationError(status_data)
+
+            # Get Facebook Permalink
+            if self.fb_post_id and self.post_estado == "Publicado":
+                if not self.fb_post_url:
+                    if self.tipo == "feed":
+                        self.fb_post_url = 'https://www.facebook.com/' + self.fb_post_id
+                    else:
+                        self.fb_post_url = 'Las historias no tienen acceso directo'
             # Get Instagram Permalink
-            if self.inst_post_id:
+            if self.inst_post_id and self.post_estado == "Publicado":
                 if not self.inst_post_url:
                     url = f"https://graph.facebook.com/v22.0/{self.inst_post_id}"
                     # Parameters
@@ -170,7 +212,7 @@ class project_task(models.Model):
                         self.inst_post_url = data.get('permalink')
 
             # Get TIKTOK Permalink
-            if self.tiktok_post_id:
+            if self.tiktok_post_id and self.post_estado == "Publicado":
 
                 if not self.tiktok_post_url:
                     # Paso 1: Obtener el video_id desde el publish_id
@@ -241,7 +283,7 @@ class project_task(models.Model):
                 "type": "ir.actions.client",
                 "tag": "display_notification",
                 "params": {
-                    "title": "Publicacion Revisada",
+                    "title": "Publicación Revisada",
                     "message": "Las URL fueron actualizadas",
                     "type": "success",
                     'next': {
@@ -250,6 +292,11 @@ class project_task(models.Model):
                 },
             }
         except Exception as e:
+            _logger.error(f"Error en revisar_post para registro {self.id}: {str(e)}")
+            # Si es ejecución desde cron, relanzar la excepción
+            if from_cron:
+                raise
+
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
@@ -258,9 +305,6 @@ class project_task(models.Model):
                     "message": f"Error: {e}",
                     "type": "danger",
                     "sticky": True,
-                    'next': {
-                        'type': 'ir.actions.act_window_close'
-                    },
                     'next': {
                         'type': 'ir.actions.act_window_close'
                     },
@@ -302,7 +346,7 @@ class project_task(models.Model):
             if response_upload.status_code == 200:
                 return response_upload.json().get('id')
             else:
-                raise ValidationError(f"Error al subir una imagen en Facebook: {response_upload.json()}")
+                raise Exception(f"Error al subir una imagen en Facebook: {response_upload.json()}")
 
         def publish_on_facebook(media_ids):
 
@@ -366,7 +410,7 @@ class project_task(models.Model):
                     raise ValidationError(f"Error al publicar Reel en Facebook: {response_data}")
 
         def publish_on_instagram(media_urls):
-
+            nonlocal procesando
             container_id = ""
             carousel_ids = []
             container_url = f"{BASE_URL}/{self.partner_instagram_page_id}/media"
@@ -380,6 +424,7 @@ class project_task(models.Model):
                         'published': True,  # Important for scheduling
                     }
                 else:
+                    procesando = True
                     if self.tipo == "video_stories":
                         container_params = {
                             'access_token': self.partner_page_access_token,
@@ -403,26 +448,7 @@ class project_task(models.Model):
                     error_message = container_response.json()
                     raise ValidationError(f"Error al crear el contenedor de Instagram: {error_message}")
 
-                # 2. Check processing status
-                status_url = f"https://graph.facebook.com/v22.0/{container_id}"
-                status_params = {
-                    "access_token": self.partner_page_access_token,
-                    "fields": "status_code"
-                }
-
-                for _ in range(30):
-                    status_response = requests.get(status_url, params=status_params)
-                    status_data = status_response.json()
-                    if status_data.get('status_code') == 'FINISHED':
-                        break  # Video is ready
-                    elif status_data.get('status_code') == 'ERROR':
-                        raise Exception("Video processing failed")
-
-                    time.sleep(5)  # Wait 5 seconds between checks
-                else:
-                    raise Exception("Video processing timed out")
             else:
-
                 for url in media_urls:
                     carousel_params = {
                         'access_token': self.partner_page_access_token,
@@ -432,7 +458,6 @@ class project_task(models.Model):
                     carousel_response = requests.post(container_url, params=carousel_params)
                     carousel_id = carousel_response.json().get('id')
                     carousel_ids.append(carousel_response.json()['id'])
-                    print(carousel_ids)
                 carousel_params = {
                     'media_type': 'CAROUSEL',
                     'children': ",".join(carousel_ids),  # Join all IDs with commas
@@ -443,20 +468,24 @@ class project_task(models.Model):
                 container_response = requests.post(container_url, carousel_params)
                 container_id = container_response.json()['id']
 
-            # For immediate publishing (without scheduling)
-            publish_params = {
-                'access_token': self.partner_page_access_token,
-                'creation_id': container_id,
-            }
+            if not procesando:
 
-            publish_url = f"{BASE_URL}/{self.partner_instagram_page_id}/media_publish"
-            publish_response = requests.post(publish_url, params=publish_params)
+                # For immediate publishing (without scheduling)
+                publish_params = {
+                    'access_token': self.partner_page_access_token,
+                    'creation_id': container_id,
+                }
 
-            if publish_response.status_code != 200:
-                error_message = publish_response.json().get('error', {}).get('message', 'Unknown error')
-                raise ValidationError(f"Error al publicar en Instagram: {error_message}")
+                publish_url = f"{BASE_URL}/{self.partner_instagram_page_id}/media_publish"
+                publish_response = requests.post(publish_url, params=publish_params)
 
-            return publish_response.json().get('id')
+                if publish_response.status_code != 200:
+                    error_message = publish_response.json().get('error', {}).get('message', 'Unknown error')
+                    raise ValidationError(f"Error al publicar en Instagram: {error_message}")
+
+                return publish_response.json().get('id')
+            else:
+                return container_id, procesando
 
         def publish_on_tiktok(media_urls):
             url = "https://open.tiktokapis.com/v2/post/publish/video/init/"
@@ -530,7 +559,6 @@ class project_task(models.Model):
             errors = []
             success_messages = []
             published_on = []
-
             # Facebook
             if 'Facebook' in self.red_social_ids.mapped('name'):
                 try:
@@ -544,10 +572,15 @@ class project_task(models.Model):
                         fb_response = publish_on_facebook(media_urls)
 
                     if fb_response:
-                        self.write({
-                            'fb_post_id': fb_response,
-                            'fb_post_url': f'https://www.facebook.com/{fb_response}',
-                        })
+
+                        if self.tipo == "feed":
+                            self.write({
+                                'fb_post_id': fb_response,
+                                'fb_post_url': f'https://www.facebook.com/{fb_response}',
+                            })
+                        else:
+                            self.fb_post_url = 'Las historias no tienen acceso directo'
+
                         success_messages.append("Facebook: Publicación exitosa")
                         published_on.append("Facebook")
                         print("Facebook OK")
@@ -559,16 +592,24 @@ class project_task(models.Model):
             # Instagram
             if 'Instagram' in self.red_social_ids.mapped('name'):
                 try:
-                    ins_response = publish_on_instagram(media_urls)
-                    if ins_response:
+                    instagram_result = publish_on_instagram(media_urls)
+
+                    if isinstance(instagram_result, tuple):  # Cuando es video (procesando=True)
+                        container_id, procesando = instagram_result
                         self.write({
-                            'inst_post_id': ins_response
+                            'inst_post_id': container_id,
+                            'post_estado': 'Procesando' if procesando else 'Publicado'
+                        })
+                        success_messages.append("Instagram: Publicación en proceso" if procesando else "Instagram: Publicación exitosa")
+                        published_on.append("Instagram")
+                    else:  # Cuando es imagen normal
+                        self.write({
+                            'inst_post_id': instagram_result,
+                            'post_estado': 'Publicado'
                         })
                         success_messages.append("Instagram: Publicación exitosa")
                         published_on.append("Instagram")
-                        print("Instagram OK")
-                    else:
-                        errors.append("Instagram: No se recibió respuesta del servidor")
+
                 except Exception as e:
                     errors.append(f"Instagram: {str(e)}")
 
@@ -590,10 +631,14 @@ class project_task(models.Model):
 
             # Resultado final
             if published_on:
-                self.write({
-                    'post_estado': 'Publicado'
-                })
-
+                if not procesando:
+                    self.write({
+                        'post_estado': 'Publicado'
+                    })
+                else:
+                    self.write({
+                        'post_estado': 'Procesando'
+                    })
                 if errors:
                     # Publicación parcialmente exitosa
                     return {
@@ -601,12 +646,13 @@ class project_task(models.Model):
                         "tag": "display_notification",
                         "params": {
                             "title": "Error inesperado",
-                            'message': '\n'.join(success_messages + ["Errores:"] + errors),
+                            'message': '\n'.join(success_messages + [
+                                "Errores:"
+                            ] + errors),
                             "type": "danger",
                             "sticky": True,
                         },
                     }
-
                 else:
                     # Todo exitoso
                     return {
