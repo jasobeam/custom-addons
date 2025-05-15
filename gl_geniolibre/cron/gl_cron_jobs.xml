@@ -19,7 +19,7 @@
         </field>
         <field name="interval_number">15</field>
         <field name="interval_type">minutes</field> <!-- changed from 'hours' -->
-        <field name="active">True</field>
+        <field name="active">False</field>
 
     </record>
     <record id="ir_cron_tiktok_renew_token" model="ir.cron">
@@ -52,6 +52,21 @@
         </field>
         <field name="interval_number">5</field>
         <field name="interval_type">minutes</field>
-        <field name="active" eval="True"/>
+        <field name="active">False</field>
+    </record>
+    <record id="ir_cron_tiktok_renew_token" model="ir.cron">
+        <field name="name">GL TikTok Renew Token Daily</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="state">code</field>
+        <field name="code">
+            for record in model.search([('tiktok_refresh_token', '!=', False)]):
+            try:
+                record.tiktok_renew_token()
+            except Exception as e:
+                _logger.error(f"Error al renovar el token {record.id}: {e}")
+        </field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">False</field>
     </record>
 </odoo>

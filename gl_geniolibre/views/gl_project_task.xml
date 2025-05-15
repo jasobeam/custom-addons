@@ -72,10 +72,10 @@
                     </div>
                 </xpath>
                 <xpath expr="//field[@name='tag_ids']" position="after">
-                    <field name="fb_post_url" widget="url" invisible="not fb_post_url" readonly="1" text="Abrir Enlace"/>
-                    <field name="inst_post_url" widget="url" invisible="not inst_post_url" readonly="1" text="Abrir Enlace"/>
-                    <field name="tiktok_post_url" widget="url"  invisible="not tiktok_post_url" readonly="1" text="Abrir Enlace"/>
-                    <field name="post_estado" readonly="1"/>
+                    <field name="fb_post_url" widget="url" invisible="not fb_post_url" />
+                    <field name="inst_post_url" widget="url" invisible="not inst_post_url"  />
+                    <field name="tiktok_post_url" widget="url"  invisible="not tiktok_post_url" />
+                    <field name="post_estado"/>
                     <div class="d-flex justify-content-end o_state_container" invisible="not active">
                         <field name="state" widget="project_task_state_selection" class="o_task_state_widget"
                                string="Estado de la Tarea"/>
