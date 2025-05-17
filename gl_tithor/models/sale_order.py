@@ -85,30 +85,44 @@ class SaleOrder(models.Model):
         if not self.archivo_excel:
             raise ValidationError("Por favor, cargue un archivo Excel (.xlsx).")
 
-        tmp_path = None  # Definir fuera para que esté accesible en el finally
+        tmp_path = None
 
         try:
-            # Guardar temporalmente el archivo
             with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
                 tmp.write(base64.b64decode(self.archivo_excel))
                 tmp_path = tmp.name
 
-            # Cargar el libro de Excel
             libro = openpyxl.load_workbook(tmp_path, data_only=True)
-            hoja = libro.active  # Primera hoja
+            hoja = libro.active
 
-            registros_creados = 0
+            registros = []
             registros_omitidos = 0
 
-            for idx, fila in enumerate(hoja.iter_rows(min_row=2), start=2):  # Desde la fila 2
+            # Mapa de orden para las tallas
+            orden_tallas = {
+                '2': 0,
+                '4': 1,
+                '6': 2,
+                '8': 3,
+                '10': 4,
+                '12': 5,
+                '14': 6,
+                '16': 7,
+                's': 8,
+                'm': 9,
+                'l': 10,
+                'xl': 11,
+                '2xl': 12,
+                '3xl': 13
+            }
+
+            for idx, fila in enumerate(hoja.iter_rows(min_row=2), start=2):
                 valores = [celda.value for celda in fila]
 
-                # Necesitamos mínimo 7 columnas (contando desde el N°)
                 if len(valores) < 7 or not any(valores[1:]):
                     registros_omitidos += 1
                     continue
 
-                # Extraer desde la columna 1 a la 6 (índices 1 a 6)
                 nombre = valores[1]
                 tipo = valores[2]
                 numero = valores[3]
@@ -116,44 +130,48 @@ class SaleOrder(models.Model):
                 corte = valores[5]
                 manga = valores[6]
 
-                # Convertir talla al formato correcto
+                # Normalización de talla
                 if talla is not None:
                     if isinstance(talla, (int, float)):
-                        # Convertir números a strings (ej: 2 → '2')
                         talla = str(int(talla))
                     else:
-                        # Convertir strings a minúsculas y limpiar
                         talla = str(talla).strip().lower()
-                        # Manejar casos especiales como 'xl', '2xl', etc.
-                        if talla in ['xs', 's', 'm', 'l', 'xl', '2xl', '3xl']:
-                            pass  # Ya está en formato correcto
-                        elif talla.isdigit():
-                            pass  # Ya es un número como string
+                        if talla not in orden_tallas and talla.isdigit():
+                            pass
                         else:
-                            # Intenta convertir valores como 'S' → 's'
                             talla = talla.lower()
 
-                self.env['camiseta.registro'].create({
+                registros.append({
                     'nombre_en_camiseta': nombre,
                     'numero': numero,
                     'tipo': tipo,
                     'talla': talla,
                     'corte': corte,
                     'manga': manga,
+                })
+
+            # Ordenar por talla
+            registros_ordenados = sorted(registros, key=lambda r: orden_tallas.get(r['talla'], 999))
+
+            for r in registros_ordenados:
+                self.env['camiseta.registro'].create({
+                    **r,
                     'sale_order_id': self.id,
                 })
 
-                registros_creados += 1
             self.archivo_excel = False
+
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
                 'params': {
                     'title': 'Importación completada',
-                    'message': f'{registros_creados} camisetas importadas correctamente. '
+                    'message': f'{len(registros_ordenados)} camisetas importadas correctamente. '
                                f'{registros_omitidos} filas fueron omitidas por estar incompletas.',
                     'type': 'success',
-                    'next': {'type': 'ir.actions.act_window_close'},
+                    'next': {
+                        'type': 'ir.actions.act_window_close'
+                    },
                 }
             }
 
@@ -161,6 +179,5 @@ class SaleOrder(models.Model):
             raise ValidationError(f"Error al procesar el archivo: {str(e)}")
 
         finally:
-            # Eliminar el archivo temporal si existe
             if tmp_path and os.path.exists(tmp_path):
                 os.remove(tmp_path)
