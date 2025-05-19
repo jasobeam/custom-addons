@@ -46,6 +46,8 @@ class project_task(models.Model):
     presupuesto = fields.Monetary("Presupuesto", currency_field='currency_id', tracking=True)
     currency_id = fields.Many2one('res.currency', string='Moneda')
     adjuntos_ids = fields.Many2many('ir.attachment', string='Archivos Adjuntos', tracking=True)
+    milisegundos_portada = fields.Integer(string='Milisegundos para Miniatura')
+    imagen_portada = fields.Image(string='Imagen de Portada')
     tipo = fields.Selection(selection=[
         ('feed', 'Feed'),
         ('video_stories', 'Historia'),
@@ -403,7 +405,8 @@ class project_task(models.Model):
                     "upload_phase": "finish",
                     "video_state": "PUBLISHED",
                     "description": combined_text,
-                }
+                    "thumb_offset" : self.milisegundos_portada
+                    }
                 response = requests.post(url, params=params)
                 response_data = response.json()
                 if 'success' in response_data:
@@ -440,7 +443,9 @@ class project_task(models.Model):
                             'caption': combined_text,
                             'video_url': media_urls[0],  # For images
                             'published': True,  # Important for scheduling,
-                            'media_type': 'REELS'
+                            'media_type': 'REELS',
+                            'thumbNailOffset': 30000,
+                            'thumbNail': "https://img.ayrshare.com/012/gb.jpg"
                         }
 
                 container_response = requests.post(container_url, params=container_params)
@@ -569,7 +574,8 @@ class project_task(models.Model):
             if 'Facebook' in self.red_social_ids.mapped('name'):
                 try:
                     if self.tipo == "feed":
-                        for attachment in self.adjuntos_ids:
+                        sorted_attachments = sorted(self.adjuntos_ids, key=lambda a: a.name.lower(), reverse=True)
+                        for attachment in sorted_attachments:
                             media_id = upload_images_to_facebook(attachment)  # Pass single attachment
                             media_ids.append(media_id)
                         fb_response = publish_on_facebook(media_ids)
@@ -684,38 +690,41 @@ def upload_files_to_s3(file, aws_api, aws_secret):
     if not aws_access_key_id or not aws_secret_access_key:
         raise ValidationError("No se configuró correctamente el servicio de AWS")
 
-    # Initialize the S3 client
-    s3_client = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=region_name)
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        region_name=region_name
+    )
 
     if not file:
         raise ValidationError("No se encontraron archivos adjuntos.")
 
-    allowed_extensions = {
-        'jpg',
-        'jpeg',
-        'mp4'
-    }
+    allowed_extensions = {'jpg', 'jpeg', 'mp4'}
     uploaded_urls = []
 
-    for attachment in file:
+    # Ordenar archivos alfabéticamente en orden inverso
+    sorted_files = sorted(file, key=lambda a: a.name.lower(), reverse=True)
 
-        # Validate attachment
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    random_digits = ''.join(random.choices('0123456789', k=5))
+
+    for idx, attachment in enumerate(sorted_files, start=1):
         if not attachment.datas or not attachment.name:
             raise ValidationError(f"Archivo adjunto inválido: {attachment.name}")
 
-        # Get file extension properly
         file_ext = attachment.name.split('.')[-1].lower()
         if file_ext not in allowed_extensions:
             raise ValidationError(f"Tipo de archivo '{file_ext}' no permitido. Solo JPG/JPEG/MP4")
 
-        # Generate unique filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        random_digits = ''.join(random.choices('0123456789', k=5))
-        file_name = f"media_{timestamp}_{random_digits}.{file_ext}"
-        # Upload to S3
-        s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=base64.b64decode(attachment.datas), )
+        file_name = f"media_{timestamp}_{random_digits}-{idx}.{file_ext}"
 
-        # Store URL
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=file_name,
+            Body=base64.b64decode(attachment.datas),
+        )
+
         file_url = f"https://{bucket_name}.s3.us-east-2.amazonaws.com/{file_name}"
         uploaded_urls.append(file_url)
 

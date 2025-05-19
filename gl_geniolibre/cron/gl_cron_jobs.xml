@@ -19,8 +19,8 @@
         </field>
         <field name="interval_number">15</field>
         <field name="interval_type">minutes</field> <!-- changed from 'hours' -->
-        <field name="active">False</field>
-
+        <field name="active">True</field>
+        <field name="priority">0</field>
     </record>
     <record id="ir_cron_tiktok_renew_token" model="ir.cron">
         <field name="name">GL TikTok Renew Token Daily</field>
@@ -52,7 +52,7 @@
         </field>
         <field name="interval_number">5</field>
         <field name="interval_type">minutes</field>
-        <field name="active">False</field>
+        <field name="active">True</field>
     </record>
     <record id="ir_cron_tiktok_renew_token" model="ir.cron">
         <field name="name">GL TikTok Renew Token Daily</field>
@@ -67,6 +67,7 @@
         </field>
         <field name="interval_number">1</field>
         <field name="interval_type">days</field>
-        <field name="active">False</field>
+        <field name="active">True</field>
+        <field name="priority">10</field>
     </record>
 </odoo>
