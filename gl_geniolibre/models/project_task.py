@@ -690,6 +690,7 @@ def upload_files_to_s3(file, aws_api, aws_secret):
     if not aws_access_key_id or not aws_secret_access_key:
         raise ValidationError("No se configuró correctamente el servicio de AWS")
 
+    # Initialize the S3 client
     s3_client = boto3.client(
         's3',
         aws_access_key_id=aws_access_key_id,
@@ -703,13 +704,11 @@ def upload_files_to_s3(file, aws_api, aws_secret):
     allowed_extensions = {'jpg', 'jpeg', 'mp4'}
     uploaded_urls = []
 
-    # Ordenar archivos alfabéticamente en orden inverso
-    sorted_files = sorted(file, key=lambda a: a.name.lower(), reverse=True)
-
+    # Datos comunes para nombre único base
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     random_digits = ''.join(random.choices('0123456789', k=5))
 
-    for idx, attachment in enumerate(sorted_files, start=1):
+    for idx, attachment in enumerate(file, start=1):
         if not attachment.datas or not attachment.name:
             raise ValidationError(f"Archivo adjunto inválido: {attachment.name}")
 
@@ -717,14 +716,17 @@ def upload_files_to_s3(file, aws_api, aws_secret):
         if file_ext not in allowed_extensions:
             raise ValidationError(f"Tipo de archivo '{file_ext}' no permitido. Solo JPG/JPEG/MP4")
 
+        # Nombre con numeración secuencial
         file_name = f"media_{timestamp}_{random_digits}-{idx}.{file_ext}"
 
+        # Subir archivo
         s3_client.put_object(
             Bucket=bucket_name,
             Key=file_name,
             Body=base64.b64decode(attachment.datas),
         )
 
+        # Guardar URL
         file_url = f"https://{bucket_name}.s3.us-east-2.amazonaws.com/{file_name}"
         uploaded_urls.append(file_url)
 
