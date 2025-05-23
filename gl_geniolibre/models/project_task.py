@@ -1,17 +1,13 @@
 # -*- coding: utf-8 -*-:
-import random
-import re, requests, base64, boto3, json
+import random, re, requests, base64, boto3, json, logging
 
-from datetime import datetime
-
-from odoo.exceptions import ValidationError
+from io import BytesIO
 from odoo.tools import html2plaintext
 from odoo import models, fields, api
-
-import logging
+from datetime import datetime
+from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
-
 
 class red_social(models.Model):
     _name = 'red.social'
@@ -46,7 +42,6 @@ class project_task(models.Model):
     presupuesto = fields.Monetary("Presupuesto", currency_field='currency_id', tracking=True)
     currency_id = fields.Many2one('res.currency', string='Moneda')
     adjuntos_ids = fields.Many2many('ir.attachment', string='Archivos Adjuntos', tracking=True)
-    milisegundos_portada = fields.Integer(string='Milisegundos para Miniatura')
     imagen_portada = fields.Image(string='Imagen de Portada')
     tipo = fields.Selection(selection=[
         ('feed', 'Feed'),
@@ -151,6 +146,7 @@ class project_task(models.Model):
         error_message = []
         try:
             if self.post_estado == "Procesando":
+
                 # 2. Check processing status
                 BASE_URL = 'https://graph.facebook.com/v22.0'
                 container_id = self.inst_post_id
@@ -192,27 +188,35 @@ class project_task(models.Model):
 
             # Get Facebook Permalink
             if self.fb_post_id and self.post_estado == "Publicado":
-                print(self.tipo)
                 if not self.tipo == "video_stories":
                     self.fb_post_url = 'https://www.facebook.com/' + self.fb_post_id
                 else:
-                    self.fb_post_url = 'Las historias no tienen acceso directo'
+                    self.fb_post_url = 'https://www.facebook.com/' + self.partner_facebook_page_id
 
             # Get Instagram Permalink
             if self.inst_post_id and self.post_estado == "Publicado":
+
                 if not self.inst_post_url:
                     url = f"https://graph.facebook.com/v22.0/{self.inst_post_id}"
-                    # Parameters
                     params = {
-                        'fields': 'permalink',
+                        'fields': 'media_type,permalink,username',
                         'access_token': self.partner_page_access_token
                     }
                     response = requests.get(url, params=params)
+
                     if response.status_code != 200:
                         error_message.append(response.json())
                     else:
                         data = response.json()
-                        self.inst_post_url = data.get('permalink')
+                        media_type = data.get('media_type')
+                        if media_type == "STORY":
+                            username = data.get('username')
+                            if username:
+                                self.inst_post_url = f"https://www.instagram.com/{username}/"
+                            else:
+                                self.inst_post_url = False  # o algún mensaje tipo "Story sin enlace disponible"
+                        else:
+                            self.inst_post_url = data.get('permalink')
 
             # Get TIKTOK Permalink
             if self.tiktok_post_id and self.post_estado == "Publicado":
@@ -269,6 +273,7 @@ class project_task(models.Model):
                         error_message.append("El video aun no fue procesado")
 
             if error_message:
+
                 return {
                     "type": "ir.actions.client",
                     "tag": "display_notification",
@@ -405,12 +410,28 @@ class project_task(models.Model):
                     "upload_phase": "finish",
                     "video_state": "PUBLISHED",
                     "description": combined_text,
-                    "thumb_offset" : self.milisegundos_portada
-                    }
+                }
+
+
                 response = requests.post(url, params=params)
                 response_data = response.json()
                 if 'success' in response_data:
+                    if  self.imagen_portada and  self.tipo == "video_reels":
+                        image_data = base64.b64decode(self.imagen_portada)
+                        image_file = BytesIO(image_data)
+                        image_file.name = 'miniatura.jpg'  # necesario para el multipart/form-data
+
+                        url = f"https://graph.facebook.com/v19.0/{video_id}/thumbnails"
+                        files = {
+                            'source': ('miniatura.jpg', image_file, 'image/jpeg')
+                        }
+                        data = {
+                            'access_token': self.partner_page_access_token,
+                            'is_preferred': 'true'
+                        }
+                        response = requests.post(url, files=files, data=data)
                     return response_data.get("post_id")
+
                 else:
                     raise ValidationError(f"Error al publicar Reel en Facebook: {response_data}")
 
@@ -429,6 +450,7 @@ class project_task(models.Model):
                     }
                 else:
                     estado_procesando = True
+
                     if self.tipo == "video_stories":
                         container_params = {
                             'access_token': self.partner_page_access_token,
@@ -437,15 +459,15 @@ class project_task(models.Model):
                             'published': True,  # Important for scheduling,
                             'media_type': 'STORIES'
                         }
-                    else:
+                    else: #Publicación de Reels
+                        cover_url = upload_files_to_s3([("portada.jpg", self.imagen_portada)], aws_api, aws_secret)[0]
                         container_params = {
                             'access_token': self.partner_page_access_token,
                             'caption': combined_text,
                             'video_url': media_urls[0],  # For images
                             'published': True,  # Important for scheduling,
                             'media_type': 'REELS',
-                            'thumbNailOffset': 30000,
-                            'thumbNail': "https://img.ayrshare.com/012/gb.jpg"
+                            "cover_url": cover_url
                         }
 
                 container_response = requests.post(container_url, params=container_params)
@@ -491,8 +513,7 @@ class project_task(models.Model):
 
                 return publish_response.json().get('id')
             else:
-                print(container_id)
-                print(estado_procesando)
+
                 return container_id, estado_procesando
 
         def publish_on_tiktok(media_urls):
@@ -571,11 +592,11 @@ class project_task(models.Model):
             success_messages = []
             published_on = []
             # Facebook
+
             if 'Facebook' in self.red_social_ids.mapped('name'):
                 try:
                     if self.tipo == "feed":
-                        sorted_attachments = sorted(self.adjuntos_ids, key=lambda a: a.name.lower(), reverse=True)
-                        for attachment in sorted_attachments:
+                        for attachment in self.adjuntos_ids:
                             media_id = upload_images_to_facebook(attachment)  # Pass single attachment
                             media_ids.append(media_id)
                         fb_response = publish_on_facebook(media_ids)
@@ -603,6 +624,7 @@ class project_task(models.Model):
             procesando=False
             # Instagram
             if 'Instagram' in self.red_social_ids.mapped('name'):
+
                 try:
                     instagram_result = publish_on_instagram(media_urls)
 
@@ -680,17 +702,15 @@ class project_task(models.Model):
         except Exception as e:
             raise ValidationError(f"Error en el proceso de publicación: {str(e)}")
 
-
-def upload_files_to_s3(file, aws_api, aws_secret):
+def upload_files_to_s3(files, aws_api, aws_secret):
     aws_access_key_id = aws_api
     aws_secret_access_key = aws_secret
     bucket_name = 'odoo-geniolibre'
     region_name = 'us-east-2'
 
     if not aws_access_key_id or not aws_secret_access_key:
-        raise ValidationError("No se configuró correctamente el servicio de AWS")
+        raise ValidationError("No se configuró correctamente el servicio de AWS.")
 
-    # Initialize the S3 client
     s3_client = boto3.client(
         's3',
         aws_access_key_id=aws_access_key_id,
@@ -698,36 +718,53 @@ def upload_files_to_s3(file, aws_api, aws_secret):
         region_name=region_name
     )
 
-    if not file:
-        raise ValidationError("No se encontraron archivos adjuntos.")
+    if not files:
+        raise ValidationError("No se encontraron archivos adjuntos o imágenes.")
+
+    # Normalizar archivos: convertir a lista si es recordset o cualquier otra cosa iterable
+    if hasattr(files, 'ids'):
+        files = list(files)
+    elif not isinstance(files, list):
+        files = [files]
 
     allowed_extensions = {'jpg', 'jpeg', 'mp4'}
     uploaded_urls = []
 
-    # Datos comunes para nombre único base
+    # Identificadores comunes
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     random_digits = ''.join(random.choices('0123456789', k=5))
 
-    for idx, attachment in enumerate(file, start=1):
-        if not attachment.datas or not attachment.name:
-            raise ValidationError(f"Archivo adjunto inválido: {attachment.name}")
+    for idx, item in enumerate(files, start=1):
+        if hasattr(item, 'datas') and hasattr(item, 'name'):  # ir.attachment
+            file_name_raw = item.name
+            file_data = item.datas
+        elif isinstance(item, (tuple, list)) and len(item) == 2:  # (name, data)
+            file_name_raw = item[0]
+            file_data = item[1]
+        elif isinstance(item, str):  # base64 string
+            file_name_raw = f"upload_{timestamp}_{random_digits}-{idx}.jpg"
+            file_data = item
+        else:
+            raise ValidationError("Formato de archivo no soportado o inválido.")
 
-        file_ext = attachment.name.split('.')[-1].lower()
+        file_ext = file_name_raw.split('.')[-1].lower()
         if file_ext not in allowed_extensions:
-            raise ValidationError(f"Tipo de archivo '{file_ext}' no permitido. Solo JPG/JPEG/MP4")
+            raise ValidationError(f"Tipo de archivo '{file_ext}' no permitido. Solo JPG, JPEG o MP4.")
 
-        # Nombre con numeración secuencial
         file_name = f"media_{timestamp}_{random_digits}-{idx}.{file_ext}"
 
-        # Subir archivo
-        s3_client.put_object(
-            Bucket=bucket_name,
-            Key=file_name,
-            Body=base64.b64decode(attachment.datas),
-        )
+        try:
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=file_name,
+                Body=base64.b64decode(file_data),
+            )
+        except Exception as e:
+            raise ValidationError(f"Error al subir archivo {file_name_raw} a S3: {str(e)}")
 
-        # Guardar URL
-        file_url = f"https://{bucket_name}.s3.us-east-2.amazonaws.com/{file_name}"
+        file_url = f"https://{bucket_name}.s3.{region_name}.amazonaws.com/{file_name}"
         uploaded_urls.append(file_url)
 
     return uploaded_urls
+
+

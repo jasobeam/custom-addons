@@ -1,14 +1,31 @@
 # -*- coding: utf-8 -*-:
 import datetime
+import json
 import time
 import pytz
 import requests
+import logging
 
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 from urllib.parse import urlparse, parse_qs
 from collections import defaultdict
 from datetime import datetime
+from google.ads.googleads.client import GoogleAdsClient
+from google.ads.googleads.errors import GoogleAdsException
+
+
+class GoogleAdCampaign(models.Model):
+    _name = 'google.ad.campaigns'
+    _description = 'Google Ad Campaigns'
+    _sql_constraints = [
+        ('campaign_id_unique', 'unique(campaign_id)', 'La campaña ya existe.'),
+    ]
+
+    name = fields.Char('Nombre')
+    campaign_id = fields.Char('ID de Campaña', required=True)
+    account_id = fields.Char('ID Cuenta Google Ads')
+    project_id = fields.Many2one('project.project', string='Proyecto')
 
 
 class FacebookAdCampaigns(models.Model):
@@ -41,8 +58,12 @@ class project_project(models.Model):
     partner_facebook_page_id = fields.Char(related="partner_id.facebook_page_id")
     partner_instagram_page_id = fields.Char(related="partner_id.instagram_page_id")
     partner_tiktok_access_token = fields.Char(related="partner_id.tiktok_access_token")
+
     partner_id_facebook_ad_account = fields.Char(related="partner_id.id_facebook_ad_account")
     facebook_ad_campaigns_ids = fields.One2many('facebook.ad.campaigns', 'project_id', string='Campañas de Facebook')
+
+    partner_id_google_ads_account = fields.Char(related="partner_id.id_google_ads_account")
+    google_ad_campaigns_ids = fields.One2many('google.ad.campaigns', 'project_id', string='Campañas de Google Ads')
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -136,8 +157,87 @@ class project_project(models.Model):
         if stale:
             stale.unlink()
 
-    def fetch_google_ads_campaigns(self):
-        print("Obtener datos de campañas de Google Ads")
+    def fetch_google_campaigns(self):
+        # Obtener credenciales desde configuración técnica
+        cfg = self.env['ir.config_parameter'].sudo()
+        developer_token = cfg.get_param('gl_google.developer_token')
+        client_id = cfg.get_param('gl_google.client_id')
+        client_secret = cfg.get_param('gl_google.client_secret')
+        refresh_token = cfg.get_param('gl_google.refresh_token')
+        login_customer_id = cfg.get_param('gl_google.login_customer_id')
+
+        if not all([
+            developer_token,
+            client_id,
+            client_secret,
+            refresh_token,
+            login_customer_id
+        ]):
+            raise ValidationError("Faltan credenciales en la configuración técnica.")
+
+        CampaignGA = self.env['google.ad.campaigns'].sudo()
+        for record in self:
+            account = record.partner_id_google_ads_account
+            if not account:
+                raise ValidationError("El proyecto no tiene una cuenta de Google Ads asignada.")
+
+            since_date = record.date_start
+            until_date = record.date
+            if not since_date or not until_date:
+                raise ValidationError("Por favor define las fechas de inicio y fin del proyecto.")
+
+            # Limpiar campañas previas de esta cuenta
+            CampaignGA.search([
+                ('account_id', '=', account)
+            ]).unlink()
+
+            # Configuración del cliente Google Ads
+            client = GoogleAdsClient.load_from_dict({
+                'developer_token': developer_token,
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'refresh_token': refresh_token,
+                'login_customer_id': login_customer_id,
+                'use_proto_plus': True,
+            })
+            service = client.get_service('GoogleAdsService')
+
+            # Formatear fechas en 'YYYY-MM-DD'
+            since_str = since_date.strftime('%Y-%m-%d')
+            until_str = until_date.strftime('%Y-%m-%d')
+
+            # Query GAQL para campañas con impresiones en el periodo indicado
+            query = f"""
+                        SELECT
+                          campaign.id,
+                          campaign.name,
+                          campaign.status,
+                          metrics.impressions
+                        FROM campaign
+                        WHERE segments.date BETWEEN '{since_str}' AND '{until_str}'
+                          AND metrics.impressions > 0
+                    """
+
+            response = service.search(customer_id=account, query=query)
+            api_ids = []
+
+            for row in response:
+                cid = str(row.campaign.id)
+                api_ids.append(cid)
+                CampaignGA.create({
+                    'campaign_id': cid,
+                    'name': row.campaign.name,
+                    'account_id': account,
+                    'project_id': record.id,
+                })
+
+            # Eliminar campañas ya no presentes
+            stale = CampaignGA.search([
+                ('account_id', '=', account),
+                ('campaign_id', 'not in', api_ids),
+            ])
+            if stale:
+                stale.unlink()
 
     def get_facebook_data(self, since, until):
         BASE_URL = f"https://graph.facebook.com/v22.0/{self.partner_facebook_page_id}/insights"
@@ -619,7 +719,155 @@ class project_project(models.Model):
         }
 
     def get_google_ads_data(self, since, until):
-        print("Simulación de error para prueba")
+        """Obtiene datos de Google Ads para los proyectos especificados."""
+        cfg = self.env['ir.config_parameter'].sudo()
+        required_credentials = [
+            'gl_google.developer_token',
+            'gl_google.client_id',
+            'gl_google.client_secret',
+            'gl_google.refresh_token',
+            'gl_google.login_customer_id'
+        ]
+
+        # Obtener y validar credenciales
+        credentials = {cred: cfg.get_param(cred) for cred in required_credentials}
+        if not all(credentials.values()):
+            missing = [cred for cred, val in credentials.items() if not val]
+            raise ValidationError(f"Faltan credenciales en la configuración técnica: {', '.join(missing)}")
+
+        result = {}
+
+        for project in self:
+            try:
+                # Validar cuenta y fechas del proyecto
+                account = project.partner_id_google_ads_account
+                if not account:
+                    raise ValidationError(f"El proyecto {project.name} no tiene una cuenta de Google Ads asignada.")
+
+                since_date = project.date_start
+                until_date = project.date
+                if not since_date or not until_date:
+                    raise ValidationError(f"Define las fechas de inicio y fin para el proyecto {project.name}.")
+
+                # Inicializar cliente de Google Ads
+                client = GoogleAdsClient.load_from_dict({
+                    'developer_token': credentials['gl_google.developer_token'],
+                    'client_id': credentials['gl_google.client_id'],
+                    'client_secret': credentials['gl_google.client_secret'],
+                    'refresh_token': credentials['gl_google.refresh_token'],
+                    'login_customer_id': credentials['gl_google.login_customer_id'],
+                    'use_proto_plus': True,
+                })
+                service = client.get_service('GoogleAdsService')
+
+                # Formatear fechas
+                since_str = since_date.strftime('%Y-%m-%d')
+                until_str = until_date.strftime('%Y-%m-%d')
+
+                # Obtener IDs de campañas
+                campaign_ids = [str(c.campaign_id) for c in project.google_ad_campaigns_ids]
+                if not campaign_ids:
+                    continue
+
+                # Consultar datos de campañas
+                campaigns_filter = ','.join(campaign_ids)
+                campaign_query = f"""
+                    SELECT
+                      campaign.id,
+                      campaign.name,
+                      metrics.impressions,
+                      metrics.clicks,
+                      metrics.cost_micros,
+                      metrics.ctr,
+                      metrics.average_cpc,
+                      metrics.conversions_from_interactions_rate,
+                      metrics.all_conversions,
+                      metrics.cost_per_all_conversions
+                    FROM campaign
+                    WHERE campaign.id IN ({campaigns_filter})
+                      AND segments.date BETWEEN '{since_str}' AND '{until_str}'
+                """
+
+                response = service.search(customer_id=account, query=campaign_query)
+
+                # Procesar datos de campañas
+                project_data = []
+                for row in response:
+                    campaign_data = {
+                        'id': str(row.campaign.id),
+                        'name': row.campaign.name,
+                        'impressions': row.metrics.impressions,
+                        'clicks': row.metrics.clicks,
+                        'cost_micros': row.metrics.cost_micros,
+                        'cost': float(row.metrics.cost_micros) / 1_000_000.0,
+                        'ctr': float(row.metrics.ctr) if row.metrics.ctr is not None else 0.0,
+                        'average_cpc': float(row.metrics.average_cpc) / 1_000_000.0 if row.metrics.average_cpc is not None else 0.0,
+                        'conversion_rate': float(row.metrics.conversions_from_interactions_rate) if row.metrics.conversions_from_interactions_rate is not None else 0.0,
+                        'all_conversions': float(row.metrics.all_conversions) if row.metrics.all_conversions is not None else 0.0,
+                        'cost_per_all_conversions': float(row.metrics.cost_per_all_conversions) / 1_000_000.0 if row.metrics.cost_per_all_conversions is not None else 0.0,
+                    }
+                    project_data.append(campaign_data)
+
+                # Consultar datos de palabras clave (top 15 por clicks)
+                keyword_query = f"""
+                    SELECT
+                        ad_group_criterion.keyword.text,
+                        metrics.impressions,
+                        metrics.clicks,
+                        metrics.cost_micros,
+                        metrics.conversions,
+                        metrics.average_cpc
+                    FROM keyword_view
+                    WHERE segments.date BETWEEN '{since_str}' AND '{until_str}'
+                        AND ad_group_criterion.status = 'ENABLED'
+                        AND campaign.id IN ({campaigns_filter})
+                        AND ad_group_criterion.keyword.text != ''
+                    ORDER BY metrics.clicks DESC
+                    LIMIT 10
+                """
+
+                response_keywords = service.search(customer_id=account, query=keyword_query)
+
+                keyword_data = []
+                for row in response_keywords:
+                    keyword_text = row.ad_group_criterion.keyword.text
+                    if not keyword_text:  # Doble verificación por si acaso
+                        continue
+
+                    impressions = row.metrics.impressions
+                    clicks = row.metrics.clicks
+                    cost_micros = row.metrics.cost_micros
+                    conversions = row.metrics.conversions if hasattr(row.metrics, 'conversions') else 0.0
+                    average_cpc = float(row.metrics.average_cpc) / 1_000_000 if row.metrics.average_cpc is not None else 0.0
+
+                    cost = float(cost_micros) / 1_000_000 if cost_micros else 0.0
+                    cost_per_conversion = cost / conversions if conversions else 0.0
+
+                    keyword_data.append({
+                        'keyword': keyword_text,
+                        'clicks': clicks,
+                        'cost': round(cost, 2),
+                        'impressions': impressions,
+                        'conversions': float(conversions) if conversions else 0.0,
+                        'cost_per_conversion': round(cost_per_conversion, 2),
+                        'average_cpc': round(average_cpc, 2),
+                    })
+
+                # Asegurar que solo tenemos 15 elementos ordenados por clicks
+                keyword_data_sorted = sorted(keyword_data, key=lambda x: x['clicks'], reverse=True)[:10]
+
+                # Combinar resultados
+                project_data.append({
+                    'keywords_summary': keyword_data_sorted
+                })
+
+                result[project.id] = project_data
+
+            except Exception as e:
+                # Registrar error pero continuar con otros proyectos
+                raise ValidationError(f"Error al obtener datos de Google Ads para el proyecto {project.name}: {str(e)}")
+
+        return result
 
     def action_generate_report(self):
         self.ensure_one()
@@ -642,7 +890,8 @@ class project_project(models.Model):
             until = int(end_dt_utc.timestamp())
 
             # Facebook
-            if self.partner_facebook_page_id:
+            if self.partner_facebook_page_id and self.facebook_ad_campaigns_ids:
+                print("Reporte de Facebook")
                 try:
                     facebook_data = self.get_facebook_data(since, until)
                     messages.append("✅ Facebook: datos obtenidos.")
@@ -659,7 +908,8 @@ class project_project(models.Model):
                     messages.append(f"❌ Meta Ads: error - {str(e)}")
 
             # Instagram
-            if self.partner_instagram_page_id:
+            if self.partner_instagram_page_id and self.facebook_ad_campaigns_ids:
+                print("Reporte de Instagram")
                 try:
                     instagram_data = self.get_instagram_data(since, until)
                     messages.append("✅ Instagram: datos obtenidos.")
@@ -668,13 +918,21 @@ class project_project(models.Model):
                     messages.append(f"❌ Instagram: error - {str(e)}")
 
             # Google Ads
-            if self.partner_id.id_google_ads_account:
+            if self.partner_id.id_google_ads_account and self.google_ad_campaigns_ids:
+                print("🔍 Reporte de Google Ads")
                 try:
                     google_ads_data = self.get_google_ads_data(since, until)
-                    messages.append("✅ Google Ads: datos obtenidos.")
+                    if google_ads_data:
+                        from pprint import pprint
+                        print("\n=== RESULTADOS DE GOOGLE ADS ===")
+                        print(json.dumps(google_ads_data, indent=2, ensure_ascii=False))
+                        messages.append("✅ Google Ads: datos obtenidos.")
+                    else:
+                        print("⚠️ No se encontraron datos de campañas de Google Ads en el período seleccionado.")
+                        messages.append("⚠️ Google Ads: sin datos en el período.")
                 except Exception as e:
-                    has_errors = True
-                    messages.append(f"❌ Google Ads: error - {str(e)}")
+                    print(f"❌ Error obteniendo datos de Google Ads: {e}")
+                    messages.append("❌ Google Ads: error al obtener los datos.")
 
             # Consolidar datos
             data = {
@@ -729,6 +987,7 @@ class project_project(models.Model):
                     "sticky": True,
                 },
             }
+
 
 def action_print_report(self):
     data = {

@@ -7,3 +7,4 @@ access_facebook_ad_campaigns,access.facebook.ad.campaigns,model_facebook_ad_camp
 access_google_ads_account,access.google.ads.account,model_google_ads_account,base.group_user,1,1,1,1
 access_google_search_console_site,access.google.search.console.site,model_google_search_console_site,base.group_user,1,1,1,1
 access_google_analytics_property,access.google.analytics.property,model_google_analytics_property,base.group_user,1,1,1,1
+access_google_ad_campaigns,access.google.ad.campaigns,model_google_ad_campaigns,base.group_user,1,1,1,1

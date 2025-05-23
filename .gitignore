@@ -4,3 +4,23 @@ gl_geniolibre/models/__pycache__/
 sales_contract_and_recurring_invoices/models/__pycache__/
 
 gl_tithor/models/__pycache__/
+
+muk_web_appsbar/__pycache__/
+
+muk_web_appsbar/models/__pycache__/
+
+muk_web_chatter/__pycache__/
+
+muk_web_chatter/models/__pycache__/
+
+muk_web_colors/__pycache__/
+
+muk_web_colors/models/__pycache__/
+
+muk_web_dialog/__pycache__/
+
+muk_web_dialog/models/__pycache__/
+
+muk_web_theme/__pycache__/
+
+muk_web_theme/models/__pycache__/
