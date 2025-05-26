@@ -36,10 +36,10 @@
                 <field name="nombre_en_camiseta"/>
                 <field name="numero"/>
                 <field name="tipo"/>
-                <field name="talla"/>
+                <field name="talla_camiseta"/>
+                <field name="talla_short"/>
                 <field name="corte"/>
                 <field name="manga"/>
-
             </list>
         </field>
     </record>

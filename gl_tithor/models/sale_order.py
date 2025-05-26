@@ -1,18 +1,15 @@
-import base64
-import os
+import base64, os, openpyxl, tempfile
 
-import openpyxl
-import tempfile
-
-from odoo import fields, models, api
+from odoo import fields, models
 from odoo.exceptions import ValidationError
+
 
 class Camiseta_Registro(models.Model):
     _name = 'camiseta.registro'
     _description = 'Registro de camisetas para jugadores'
 
-    nombre_en_camiseta = fields.Char(string='Nombre en Camiseta', required=True)
-    numero = fields.Integer(string='Número', required=True)
+    nombre_en_camiseta = fields.Char(string='Nombre en Camiseta')
+    numero = fields.Char(string='Número')
 
     tipo = fields.Selection([
         ('camiseta_short', 'Camiseta + Short'),
@@ -20,7 +17,7 @@ class Camiseta_Registro(models.Model):
         ('bividi', 'Bividi')
     ], string='Tipo', default='camiseta_short', required=True)
 
-    talla = fields.Selection([
+    talla_camiseta = fields.Selection([
         ('2', '2'),
         ('4', '4'),
         ('6', '6'),
@@ -29,13 +26,32 @@ class Camiseta_Registro(models.Model):
         ('12', '12'),
         ('14', '14'),
         ('16', '16'),
+        ('xs', 'XS'),
         ('s', 'S'),
         ('m', 'M'),
         ('l', 'L'),
         ('xl', 'XL'),
         ('2xl', '2XL'),
         ('3xl', '3XL'),
-    ], string='Talla', required=True, default='m')
+    ], string='Talla Camiseta', required=True, default='m')
+
+    talla_short = fields.Selection([
+        ('2', '2'),
+        ('4', '4'),
+        ('6', '6'),
+        ('8', '8'),
+        ('10', '10'),
+        ('12', '12'),
+        ('14', '14'),
+        ('16', '16'),
+        ('xs', 'XS'),
+        ('s', 'S'),
+        ('m', 'M'),
+        ('l', 'L'),
+        ('xl', 'XL'),
+        ('2xl', '2XL'),
+        ('3xl', '3XL'),
+    ], string='Talla Short', required=True, default='m')
 
     corte = fields.Selection([
         ('varon', 'Varón'),
@@ -45,41 +61,28 @@ class Camiseta_Registro(models.Model):
     manga = fields.Selection([
         ('normal', 'Normal'),
         ('larga', 'Larga'),
-        ('manga_0', 'Manga 0'),
+        ('manga_cero', 'Manga Cero'),
         ('bividi', 'Bividi')
     ], string='Manga', required=True, default='normal')
 
-
-
-    sale_order_id = fields.Many2one(
-        'sale.order',
-        string='Orden de Venta',
-        ondelete='cascade',
-        readonly =True
-    )
+    sale_order_id = fields.Many2one('sale.order', string='Orden de Venta', ondelete='cascade', readonly=True)
 
 
 class SaleOrder(models.Model):
     """Inherits the model sale.order"""
     _inherit = 'sale.order'
 
-    is_image_true = fields.Boolean(string="Is Show Image True",
-                                   help="Mostrar imagen en la línea de pedido de venta",
-                                   compute="_compute_is_image_true")
-    camiseta_registro_ids = fields.One2many(
-        'camiseta.registro',
-        'sale_order_id',
-        string='Detalles de las camisetas'
-    )
+    is_image_true = fields.Boolean(string="Is Show Image True", help="Mostrar imagen en la línea de pedido de venta", compute="_compute_is_image_true")
+    camiseta_registro_ids = fields.One2many('camiseta.registro', 'sale_order_id', string='Detalles de las camisetas')
     archivo_excel = fields.Binary("Archivo Excel", attachment=True)
     archivo_nombre = fields.Char("Nombre del archivo")
+
     def _compute_is_image_true(self):
         """Method _compute_is_image_true returns True if the Show Image option
         in the sale configuration is true"""
         for rec in self:
             rec.is_image_true = True if rec.env[
-                'ir.config_parameter'].sudo().get_param(
-                'sale_product_image.is_show_product_image_in_sale_report') else False
+                'ir.config_parameter'].sudo().get_param('sale_product_image.is_show_product_image_in_sale_report') else False
 
     def importar_excel(self):
         if not self.archivo_excel:
@@ -108,50 +111,81 @@ class SaleOrder(models.Model):
                 '12': 5,
                 '14': 6,
                 '16': 7,
-                's': 8,
-                'm': 9,
-                'l': 10,
-                'xl': 11,
-                '2xl': 12,
-                '3xl': 13
+                'xs': 8,
+                's': 9,
+                'm': 10,
+                'l': 11,
+                'xl': 12,
+                '2xl': 13,
+                '3xl': 14
             }
 
             for idx, fila in enumerate(hoja.iter_rows(min_row=2), start=2):
                 valores = [celda.value for celda in fila]
 
-                if len(valores) < 7 or not any(valores[1:]):
+                # Validar que los campos obligatorios estén presentes.
+                # Campos obligatorios: tipo, talla_camiseta, talla_short, corte, manga
+                if (len(valores) < 8 or  # Validar longitud
+                        not valores[2] or  # Campo obligatorio: tipo
+                        not valores[4] or  # Campo obligatorio: talla_camiseta
+                        not valores[5] or  # Campo obligatorio: talla_short
+                        not valores[6] or  # Campo obligatorio: corte
+                        not valores[7]  # Campo obligatorio: manga
+                ):
                     registros_omitidos += 1
                     continue
 
-                nombre = valores[1]
-                tipo = valores[2]
-                numero = valores[3]
-                talla = valores[4]
-                corte = valores[5]
-                manga = valores[6]
+                nombre = valores[1] or None  # Campo opcional
+                tipo = valores[2]  # Campo obligatorio
+                numero = valores[3] if valores[3] is not None else ""  # Campo opcional, vacío como ""
+                talla_camiseta = valores[4]
+                talla_short = valores[5]
+                corte = valores[6]
+                manga = valores[7]
 
-                # Normalización de talla
-                if talla is not None:
-                    if isinstance(talla, (int, float)):
-                        talla = str(int(talla))
-                    else:
-                        talla = str(talla).strip().lower()
-                        if talla not in orden_tallas and talla.isdigit():
-                            pass
+                # Función para normalizar tallas
+                def normalizar_talla(talla):
+                    if talla is not None:
+                        if isinstance(talla, (int, float)):
+                            talla = str(int(talla))
                         else:
-                            talla = talla.lower()
+                            talla = str(talla).strip().lower()
+                            if talla.isdigit() or talla in orden_tallas:
+                                talla = talla.lower()
+                            else:
+                                talla = None  # Se descarta si la talla no es válida.
+                    return talla
+
+                talla_camiseta = normalizar_talla(talla_camiseta)
+                talla_short = normalizar_talla(talla_short)
+
+                # Verificar que ambas tallas sean válidas
+                if not talla_camiseta or not talla_short:
+                    registros_omitidos += 1
+                    continue
+
+                # Verificar contenido del campo 'manga' si está vacío o contiene valores erróneos como 'manga_cero'
+                if isinstance(manga, str) and manga.strip().lower() == "manga_cero":
+                    manga = "manga_cero"  # Asegurarte de que lo registre de forma literal
+                elif not manga:
+                    manga = "Sin información"  # Valor por defecto si está vacío
 
                 registros.append({
                     'nombre_en_camiseta': nombre,
                     'numero': numero,
                     'tipo': tipo,
-                    'talla': talla,
+                    'talla_camiseta': talla_camiseta,
+                    'talla_short': talla_short,
                     'corte': corte,
                     'manga': manga,
                 })
 
-            # Ordenar por talla
-            registros_ordenados = sorted(registros, key=lambda r: orden_tallas.get(r['talla'], 999))
+            # Ordenar primero por talla_camiseta y después por talla_short.
+            registros_ordenados = sorted(registros, key=lambda r: (orden_tallas.get(
+                r['talla_camiseta'], 999), orden_tallas.get(r['talla_short'], 999)))
+
+            if not registros_ordenados:
+                raise ValidationError("El archivo Excel no contiene filas válidas.")
 
             for r in registros_ordenados:
                 self.env['camiseta.registro'].create({
