@@ -69,7 +69,6 @@ class project_project(models.Model):
             # Usar el ORM de Odoo para calcular cantidades directamente en la búsqueda
             tasks_data = self.env['project.task'].read_group(domain=[
                 ('project_id', '=', project.id)
-
             ], fields=[
                 'tipo'
             ], groupby=[
