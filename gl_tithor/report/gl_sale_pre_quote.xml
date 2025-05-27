@@ -171,7 +171,8 @@
                                             <th>Nombre</th>
                                             <th>Número</th>
                                             <th>Tipo</th>
-                                            <th>Talla</th>
+                                            <th>Talla Camiseta</th>
+                                            <th>Talla Short</th>
                                             <th>Corte</th>
                                             <th>Manga</th>
                                         </tr>
@@ -194,7 +195,10 @@
                                                 <t t-esc="dict(cam._fields['tipo'].selection).get(cam.tipo)"/>
                                             </td>
                                             <td>
-                                                <t t-esc="cam.talla.upper()"/>
+                                                <t t-esc="cam.talla_camiseta.upper()"/>
+                                            </td>
+                                            <td>
+                                                <t t-esc="cam.talla_short.upper()"/>
                                             </td>
                                             <td>
                                                 <t t-esc="dict(cam._fields['corte'].selection).get(cam.corte)"/>

@@ -10,19 +10,22 @@
                 <xpath expr="//span[@name='partner_name']" position="after">
                     <field name="project_type" widget="badge"/>
                     <group invisible="project_type != 'marketing'">
-                        <p class="mb-0 mt-3">
+                        <p class="mb-1 mt-2">
                             <strong>Plan:
                                 <field name="partner_plan_descripcion"/>
                             </strong>
                         </p>
-                        <p class="mb-0">Posts:
-                            <field name="partner_plan_post"/>
+                        <p class="mb-0">
+                            <strong>Progreso</strong>
                         </p>
-                        <p class="mb-0">Historias:
-                            <field name="partner_plan_historia"/>
+                        <p class="mb-0">
+                            <field name="post_progress" readonly="1"/>
                         </p>
-                        <p class="mb-0">Reels:
-                            <field name="partner_plan_reel"/>
+                        <p class="mb-0">
+                            <field name="historia_progress" readonly="1"/>
+                        </p>
+                        <p>
+                            <field name="reel_progress" readonly="1"/>
                         </p>
                     </group>
                 </xpath>

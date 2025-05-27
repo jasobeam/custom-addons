@@ -69,217 +69,195 @@ class project_task(models.Model):
 
     def copy(self, default=None):
         self.ensure_one()
-        if self.project_id.project_type == 'marketing':
+        # Es más seguro comprobar si project_id existe antes de acceder a sus atributos
+        if self.project_id and self.project_id.project_type == 'marketing':
             raise ValidationError("No se puede duplicar tareas de proyectos de tipo Marketing.")
-        return super(project_task, self).copy(default)
+        # Usar la sintaxis de super() preferida en Python 3
+        return super().copy(default)
 
-    def write(self, vals):
+    def write(self, vals):#optimizado
 
         for record in self:
-            if self.state != "03_approved":
-                return super().write(vals)
 
-            # Get the new values or fall back to existing ones
+
             current_tipo = vals.get('tipo', record.tipo)
 
-            # Handle attachments properly
-            if 'adjuntos_ids' in vals:
-                # Create a set of current attachment IDs for easier manipulation
-                current_attachment_ids = set(record.adjuntos_ids.ids)
+            # Validación condicional para fecha_publicacion
+            if current_tipo != "otro":
+                # Verificar si fecha_publicacion está en vals o si ya tiene un valor en el registro
+                fecha_publicacion_valor = vals.get('fecha_publicacion', record.fecha_publicacion)
+                if not fecha_publicacion_valor:
+                    raise ValidationError("La 'Fecha y hora de Publicación' es obligatoria cuando el tipo no es 'Otro'.")
 
-                # Process each command
-                for cmd in vals['adjuntos_ids']:
-                    if cmd[0] == 3:  # UNLINK (delete)
-                        current_attachment_ids.discard(cmd[1])
-                    elif cmd[0] == 4:  # LINK (add)
-                        current_attachment_ids.add(cmd[1])
-                    elif cmd[0] == 6:  # REPLACE
-                        current_attachment_ids = set(cmd[2])
+            if record.state == "03_approved":
+                if current_tipo == "otro":
+                    continue
 
-                # Get the final attachment records
-                current_attachments = self.env['ir.attachment'].browse(list(current_attachment_ids))
-            else:
-                current_attachments = record.adjuntos_ids
+                if 'adjuntos_ids' in vals:
+                    current_attachment_ids = set(record.adjuntos_ids.ids)
+                    for command in vals['adjuntos_ids']:
+                        op_type = command[0]
+                        if op_type == 0:
+                            pass
+                        elif op_type == 1:
+                            pass
+                        elif op_type == 2:
+                            if command[1]:
+                                current_attachment_ids.discard(command[1])
+                        elif op_type == 3:
+                            if command[1]:
+                                current_attachment_ids.discard(command[1])
+                        elif op_type == 4:
+                            if command[1]:
+                                current_attachment_ids.add(command[1])
+                        elif op_type == 5:
+                            current_attachment_ids.clear()
+                        elif op_type == 6:
+                            current_attachment_ids = set(command[2])
 
-            # Skip validation for "otro" tipo
-            if current_tipo == "otro":
-                return
+                    current_attachments = record.env['ir.attachment'].browse(list(current_attachment_ids))
+                else:
+                    current_attachments = record.adjuntos_ids
 
-            # Validate attachments exist
-            if len(current_attachments) < 1:
-                raise ValidationError("Debe seleccionar un archivo para publicar")
-            # Validate attachment types
-            if current_tipo != "feed":
-                if len(current_attachments) > 1 and len(self.adjuntos_ids) > 0:
-                    raise ValidationError("Solo se acepta 1 archivo para este tipo de publicación.")
-                if current_tipo in [
-                    "video_stories",
-                    "reels"
-                ]:
+                if not current_attachments:
+                    raise ValidationError("Debe seleccionar al menos un archivo para publicar para el tipo '{}'.".format(current_tipo))
+
+                if current_tipo != "feed":
+                    if len(current_attachments) > 1:
+                        raise ValidationError("Solo se acepta 1 archivo para el tipo de publicación '{}'.".format(current_tipo))
+                    if current_tipo in [
+                        "video_stories",
+                        "video_reels"
+                    ]:
+                        for attachment in current_attachments:
+                            if attachment.mimetype != "video/mp4":
+                                raise ValidationError("Solo se aceptan videos en formato MP4 para el tipo de publicación '{}'.".format(current_tipo))
+                else:  # current_tipo == "feed"
                     for attachment in current_attachments:
-                        if attachment.mimetype != "video/mp4":
-                            raise ValidationError("Solo se aceptan videos en formato MP4 para este tipo de publicación.")
+                        if attachment.mimetype == "video/mp4":
+                            raise ValidationError("Solo se aceptan imágenes para publicaciones de tipo 'Feed'. No se permiten videos MP4.")
 
-            else:
-                for attachment in current_attachments:
-                    if attachment.mimetype == "video/mp4":
-                        raise ValidationError("Solo se aceptan imágenes para publicaciones de tipo 'Feed'.")
-
-        # Proceed with a normal save operation
         return super().write(vals)
 
     def programar_post(self):
-        if self.state != "03_approved":
-            raise ValidationError("El estado de la Tarea debe ser 'Aprobado'")
+        self.ensure_one()  # Asegurar que operamos sobre un único registro al principio
 
-        self.ensure_one()  # Asegura que solo hay un registro seleccionado
-        self.env.cr.commit()  # Guarda la transacción en la base de datos
-        self.post_estado = "Programado"
+        if self.state != "03_approved":
+            raise ValidationError("El estado de la Tarea debe ser 'Aprobado' para poder programar el post.")
+
+        # Eliminar la siguiente línea: Odoo manejará el commit de la transacción.
+        self.post_estado = "Programado"  # Opcional: Si este metodo se llama desde un botón y quieres dar feedback  # podrías devolver una acción de notificación, pero para la lógica del modelo  # simplemente cambiar el estado es suficiente.
 
     def cancelar_post(self):
-
         self.ensure_one()  # Asegura que solo hay un registro seleccionado
-        self.env.cr.commit()  # Guarda la transacción en la base de datos
         self.post_estado = "Pendiente"
 
-    def revisar_post(self, from_cron=False):
+    def revisar_post(self, from_cron=False):#Optimizado
         error_message = []
         try:
             if self.post_estado == "Procesando":
-
-                # 2. Check processing status
-                BASE_URL = 'https://graph.facebook.com/v22.0'
-                container_id = self.inst_post_id
-                status_url = f"https://graph.facebook.com/v22.0/{container_id}"
+                # 2. Verificar el estado de procesamiento
+                base_url = 'https://graph.facebook.com/v22.0'
+                status_url = f"{base_url}/{self.inst_post_id}"
                 status_params = {
                     "access_token": self.partner_page_access_token,
                     "fields": "status_code"
                 }
                 status_response = requests.get(status_url, params=status_params)
                 status_data = status_response.json()
-                if status_data.get('status_code') == 'FINISHED':
-                    # For immediate publishing (without scheduling)
+
+                status_code = status_data.get('status_code')
+                if status_code == 'FINISHED':
+                    # Publicación inmediata
                     publish_params = {
                         'access_token': self.partner_page_access_token,
                         'creation_id': self.inst_post_id,
                     }
-
-                    publish_url = f"{BASE_URL}/{self.partner_instagram_page_id}/media_publish"
+                    publish_url = f"{base_url}/{self.partner_instagram_page_id}/media_publish"
                     publish_response = requests.post(publish_url, params=publish_params)
 
-                    if publish_response.status_code != 200:
-                        error_message = publish_response.json().get('error', {}).get('message', 'Unknown error')
-                        raise ValidationError(error_message)
-                    else:
+                    if publish_response.status_code == 200:
                         self.inst_post_id = publish_response.json().get('id')
-                        self.write({
-                            'post_estado': 'Publicado',
-                        })
-
-                elif status_data.get('status_code') == 'ERROR':
-                    self.write({
-                        'post_estado': 'Error',
-                        'state': '01_in_progress'
-                    })
-                    error_message = status_data
-                    raise ValidationError(error_message)
+                        self.post_estado = 'Publicado'
+                    else:
+                        error_message.append(publish_response.json().get('error', {}).get('message', 'Error desconocido'))
+                        raise ValidationError(error_message)
+                elif status_code == 'ERROR':
+                    self.post_estado = 'Error'
+                    self.state = '01_in_progress'
+                    raise ValidationError(status_data)
                 else:
                     raise ValidationError(status_data)
 
-            # Get Facebook Permalink
+            # Generar Permalink de Facebook
             if self.fb_post_id and self.post_estado == "Publicado":
-                if not self.tipo == "video_stories":
-                    self.fb_post_url = 'https://www.facebook.com/' + self.fb_post_id
-                else:
-                    self.fb_post_url = 'https://www.facebook.com/' + self.partner_facebook_page_id
+                self.fb_post_url = f"https://www.facebook.com/{self.fb_post_id}" if self.tipo != "video_stories" else f"https://www.facebook.com/{self.partner_facebook_page_id}"
 
-            # Get Instagram Permalink
-            if self.inst_post_id and self.post_estado == "Publicado":
-
-                if not self.inst_post_url:
-                    url = f"https://graph.facebook.com/v22.0/{self.inst_post_id}"
-                    params = {
-                        'fields': 'media_type,permalink,username',
-                        'access_token': self.partner_page_access_token
-                    }
-                    response = requests.get(url, params=params)
-
-                    if response.status_code != 200:
-                        error_message.append(response.json())
+            # Generar Permalink de Instagram
+            if self.inst_post_id and self.post_estado == "Publicado" and not self.inst_post_url:
+                url = f"https://graph.facebook.com/v22.0/{self.inst_post_id}"
+                params = {
+                    'fields': 'media_type,permalink,username',
+                    'access_token': self.partner_page_access_token
+                }
+                response = requests.get(url, params=params)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('media_type') == "STORY":
+                        username = data.get('username')
+                        self.inst_post_url = f"https://www.instagram.com/{username}/" if username else False
                     else:
-                        data = response.json()
-                        media_type = data.get('media_type')
-                        if media_type == "STORY":
-                            username = data.get('username')
-                            if username:
-                                self.inst_post_url = f"https://www.instagram.com/{username}/"
-                            else:
-                                self.inst_post_url = False  # o algún mensaje tipo "Story sin enlace disponible"
-                        else:
-                            self.inst_post_url = data.get('permalink')
+                        self.inst_post_url = data.get('permalink')
+                else:
+                    error_message.append(response.json())
 
-            # Get TIKTOK Permalink
-            if self.tiktok_post_id and self.post_estado == "Publicado":
+            # Generar Permalink de TikTok
+            if self.tiktok_post_id and self.post_estado == "Publicado" and not self.tiktok_post_url:
+                status_url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
+                headers = {
+                    'Authorization': f'Bearer {self.partner_tiktok_access_token}',
+                    'Content-Type': 'application/json',
+                }
+                payload = {
+                    "publish_id": self.tiktok_post_id
+                }
+                response = requests.post(status_url, headers=headers, json=payload)
 
-                if not self.tiktok_post_url:
-                    # Paso 1: Obtener el video_id desde el publish_id
-                    status_url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
-                    headers = {
-                        'Authorization': f'Bearer {self.partner_tiktok_access_token}',
-                        'Content-Type': 'application/json',
-                    }
-                    data = {
-                        "publish_id": self.tiktok_post_id,
-                    }
-                    response = requests.post(status_url, headers=headers, data=json.dumps(data))
-                    if response.status_code != 200:
-                        error_message.append(response.json())
-
-                    elif response.json().get('data', {}).get('status') == 'PUBLISH_COMPLETE':
-                        status_data = response.json()
-                        video_id = status_data.get("data", {}).get("publicaly_available_post_id")
-                        if not video_id:
-                            error_message.append("No se pudo obtener el video_id para esta publicación.")
-
-                        video_id = str(video_id)
-                        video_id = video_id.strip("[]")
-                        url = "https://open.tiktokapis.com/v2/video/query/"
-                        headers = {
-                            'Authorization': f'Bearer {self.partner_tiktok_access_token}',
-                            'Content-Type': 'application/json'
+                if response.status_code == 200 and response.json().get('data', {}).get('status') == 'PUBLISH_COMPLETE':
+                    video_id = response.json().get("data", {}).get("publicaly_available_post_id")
+                    if video_id:
+                        video_query_url = "https://open.tiktokapis.com/v2/video/query/"
+                        payload = {
+                            "filters": {
+                                "video_ids": [
+                                    video_id.strip("[]")
+                                ]
+                            }
                         }
                         params = {
                             'fields': "share_url"
                         }
-                        payload = {
-                            "filters": {
-                                "video_ids": [
-                                    str(video_id)
-                                ]
-                            }
-                        }
-                        # 4. Enviar y procesar respuesta
-                        response = requests.post(url, headers=headers, params=params, json=payload, timeout=10)
-                        if response.status_code == 200:
-                            # Extraer el permalink
-                            video_data = response.json().get('data', {}).get('videos', [])
+                        video_response = requests.post(video_query_url, headers=headers, params=params, json=payload)
+
+                        if video_response.status_code == 200:
+                            video_data = video_response.json().get('data', {}).get('videos', [])
                             if video_data:
                                 self.tiktok_post_url = video_data[0].get('share_url')
-
                         else:
-                            error = response.json().get('error', {})
-                            error_message.append(f"Error TikTok API: {error.get('message')}")
+                            error_message.append(video_response.json().get('error', {}).get('message', 'Error desconocido en TikTok'))
                     else:
-                        error_message.append("El video aun no fue procesado")
+                        error_message.append("No se pudo obtener el video_id para esta publicación.")
+                else:
+                    error_message.append("El video aún no fue procesado")
 
+            # Mostrar errores acumulados si los hay
             if error_message:
-
                 return {
                     "type": "ir.actions.client",
                     "tag": "display_notification",
                     "params": {
                         "title": "Error Inesperado",
-                        "message": f"Error: {error_message}",
+                        "message": '\n'.join([str(error) for error in error_message]),
                         "type": "danger",
                         "sticky": True,
                         'next': {
@@ -287,6 +265,8 @@ class project_task(models.Model):
                         },
                     },
                 }
+
+            # En caso de éxito
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
@@ -299,18 +279,17 @@ class project_task(models.Model):
                     },
                 },
             }
+
         except Exception as e:
             _logger.error(f"Error en revisar_post para registro {self.id}: {str(e)}")
-            # Si es ejecución desde cron, relanzar la excepción
             if from_cron:
                 raise
-
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
                 "params": {
                     "title": "Error Inesperado",
-                    "message": f"Error: {e}",
+                    "message": str(e),
                     "type": "danger",
                     "sticky": True,
                     'next': {
@@ -411,8 +390,6 @@ class project_task(models.Model):
                     "video_state": "PUBLISHED",
                     "description": combined_text,
                 }
-
-
                 response = requests.post(url, params=params)
                 response_data = response.json()
                 if 'success' in response_data:
@@ -545,8 +522,8 @@ class project_task(models.Model):
             return response_data["data"]["publish_id"]
 
         # Validaciones iniciales (detienen todo el proceso si fallan)
-        if self.fecha_publicacion > fields.Datetime.now():
-            return False  # Salir sin publicar
+        if self.fecha_publicacion > fields.Datetime.now() or not self.fecha_publicacion :
+            raise ValidationError("Debe seleccionar una fecha de publicación'")
 
         if self.state != "03_approved":
             raise ValidationError("El estado de la Tarea debe ser 'Aprobado'")

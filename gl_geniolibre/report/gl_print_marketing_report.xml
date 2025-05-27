@@ -14,7 +14,7 @@
                 <style type="text/css">
                     /* Estilos base */
                     .detalles {
-                    font-size:10px;
+                    font-size:14px;
                     }
                     .detalles p{
                     margin:0px;
@@ -279,26 +279,20 @@
                     /*Headers Adicionales
                     */
 
-                    .header-instagram {
+                    .header-instagram , .header-instagram th {
                     background-color: #ff1973!important; /* Instagram: rosa intenso */
                     }
-                    .header-instagram th{
-                    background-color: #ff1973!important; /* Instagram: rosa intenso */
-                    }
-                    .header-facebook {
+
+                    .header-facebook , .header-facebook th {
                     background-color: #1977f3; /* Facebook: azul oficial */
                     }
-                    .header-facebook th{
-                    background-color: #1977f3; /* Facebook: azul oficial */
-                    }
-                    .header-meta-ads {
+
+                    .header-meta-ads, .header-meta-ads th {
                     background-color: #266dc4; /* Meta Ads: azul Meta */
                     }
-                    .header-meta-ads th{
-                    background-color: #266dc4; /* Meta Ads: azul Meta */
-                    }
-                    .header-google-ads {
-                    background-color: #4285F4; /* Google Ads: azul Google */
+
+                    .header-google-ads , .header-google-ads th{
+                    background-color: #febd01;
                     }
 
                     .header-search-console {
@@ -312,15 +306,17 @@
                          alt="Partner Logo"
                          style="max-height: 20mm; width: auto; object-fit: contain;"/>
                     <!-- Título -->
-                    <h2>Reporte de Marketing - Periodo:
+                    <h2>Reporte de Marketing:</h2>
+                    <p>
                         <span t-esc="(datetime.datetime.strptime(data['report_period']['since'], '%Y-%m-%d').strftime('%d de %B del %Y')).capitalize()"/>
                         al
                         <span t-esc="(datetime.datetime.strptime(data['report_period']['until'], '%Y-%m-%d').strftime('%d de %B del %Y')).capitalize()"/>
-                    </h2>
+                    </p>
                 </div>
                 <!-- ############################################################# Sección de Facebook -->
-                <div class="page">
-                    <t t-if="data['facebook_data']">
+                <t t-if="data['facebook_data']">
+                    <div class="page">
+
                         <img src="/gl_geniolibre/static/src/img/banner_facebook.jpg" alt="Facebook"
                              style="max-width: 100%; height: auto;"/>
                         <!-- Sección de Facebook - Totales -->
@@ -525,12 +521,13 @@
                                 </tbody>
                             </table>
                         </div>
-                    </t>
-                </div>
-                <div class="page-break"/>
+                    </div>
+                    <div class="page-break"/>
+                </t>
                 <!-- ############################################################# Sección de Instagram -->
-                <div class="page">
-                    <t t-if="data['instagram_data'] ">
+                <t t-if="data['instagram_data'] ">
+                    <div class="page">
+
                         <img src="/gl_geniolibre/static/src/img/banner_instagram.jpg" alt="Instagram"
                              style="max-width: 100%; height: auto;"/>
                         <div>
@@ -761,12 +758,14 @@
 
                             </table>
                         </div>
-                    </t>
-                </div>
-                <div class="page-break"/>
+
+                    </div>
+                    <div class="page-break"/>
+                </t>
                 <!-- #############################################################  Sección de Meta Ads -->
-                <div class="page">
-                    <t t-if="data['meta_ads_data'] ">
+                <t t-if="data['meta_ads_data'] ">
+                    <div class="page">
+
                         <!-- Sección de Meta Ads -->
                         <img src="/gl_geniolibre/static/src/img/banner_meta_ads.jpg" alt="Meta Ads"
                              style="max-width: 100%; height: auto;"/>
@@ -988,166 +987,77 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div class="detalles" style="display: flex; gap: 40px;">
-                            <ul style="flex: 1; padding-left: 20px;">
-                                <li>
-                                    <strong>Total Campañas:</strong>
-                                    Número de campañas publicitarias activas en el periodo analizado
-                                </li>
-                                <li>
-                                    <strong>Moneda:</strong>
-                                    Tipo de moneda utilizada para los gastos
-                                </li>
-                                <li>
-                                    <strong>Impresiones:</strong>
-                                    Veces que los anuncios fueron mostrados a usuarios
-                                </li>
-                                <li>
-                                    <strong>Clicks:</strong>
-                                    Veces que los usuarios hicieron clic en los anuncios
-                                </li>
-                                <li>
-                                    <strong>Alcance:</strong>
-                                    Usuarios únicos que vieron los anuncios
-                                </li>
-                                <li>
-                                    <strong>Gasto Total:</strong>
-                                    Inversión total en publicidad
-                                </li>
-                                <li>
-                                    <strong>CTR:</strong>
-                                    Tasa de clics (Clicks/Impresiones) - Indica efectividad del creativo
-                                </li>
-                                <li>
-                                    <strong>CPC:</strong>
-                                    Costo por clic (Gasto/Clicks)
-                                </li>
-                                <li>
-                                    <strong>CPM:</strong>
-                                    Costo por mil impresiones
-                                </li>
-                                <li>
-                                    <strong>CPP:</strong>
-                                    Costo por persona alcanzada
-                                </li>
-                                <li>
-                                    <strong>Frecuencia:</strong>
-                                    Promedio de veces que cada usuario vio los anuncios (Impresiones/Alcance)
-                                </li>
-                                <li>
-                                    <strong>Conversaciones Iniciadas:</strong>
-                                    Interacciones que generaron diálogos con la empresa (mensajes, comentarios, etc.)
-                                </li>
-                            </ul>
-                        </div>
-                    </t>
 
-                </div>
-                <div class="page-break"/>
+                    </div>
+                    <div class="page-break"/>
+                </t>
                 <!-- #############################################################  Sección de Google Ads -->
-                <div class="page">
-                    <t t-if="data.get('google_ads_data')">
+                <t t-if="data.get('google_ads_data')">
+                    <div class="page">
+
                         <!-- Banner de Google Ads -->
-                        <img src="/gl_geniolibre/static/src/img/banner_google_ads.jpg" alt="Google Ads"
+                        <img src="/gl_geniolibre/static/src/img/banners_google_ads.jpg" alt="Google Ads"
                              style="max-width: 100%; height: auto;"/>
 
-                        <!-- Sección de Totales -->
+                        <!-- Resumen de Google Ads -->
                         <div>
-                            <h3>Totales</h3>
+                            <h3>Resumen</h3>
                             <table style="width: 100%; border-spacing: 16px;">
-                                <!-- Primera fila -->
                                 <tr>
-                                    <!-- Total Campañas -->
                                     <td class="metric-card">
                                         <div class="metric-value">
-                                            <t t-esc="sum(len(project_data) for project_data in data['google_ads_data'].values())"/>
+                                            <t t-esc="data['google_ads_data']['summary']['total_campaigns']"/>
                                         </div>
-                                        <div class="metric-label">Total Campañas</div>
+                                        <div class="metric-label">Total campañas</div>
                                     </td>
-
-                                    <!-- Impresiones -->
                                     <td class="metric-card">
                                         <div class="metric-value">
-                                            <t t-esc="sum(camp['impressions'] for project_data in data['google_ads_data'].values() for camp in project_data if 'impressions' in camp)"/>
+                                            <t t-esc="data['google_ads_data']['summary']['account_currency']"/>
+                                        </div>
+                                        <div class="metric-label">Moneda</div>
+                                    </td>
+                                    <td class="metric-card">
+                                        <div class="metric-value">
+                                            <t t-esc="data['google_ads_data']['summary']['impressions']"/>
                                         </div>
                                         <div class="metric-label">Impresiones</div>
                                     </td>
-
-                                    <!-- Clicks -->
                                     <td class="metric-card">
                                         <div class="metric-value">
-                                            <t t-esc="sum(camp['clicks'] for project_data in data['google_ads_data'].values() for camp in project_data if 'clicks' in camp)"/>
+                                            <t t-esc="data['google_ads_data']['summary']['clicks']"/>
                                         </div>
                                         <div class="metric-label">Clicks</div>
                                     </td>
-
-                                    <!-- CTR -->
+                                </tr>
+                                <tr>
                                     <td class="metric-card">
                                         <div class="metric-value">
-                                            <t t-esc="'{:.2f}%'.format(
-                                (sum(camp['clicks'] for project_data in data['google_ads_data'].values() for camp in project_data if 'clicks' in camp) /
-                                sum(camp['impressions'] for project_data in data['google_ads_data'].values() for camp in project_data if 'impressions' in camp) * 100
-                                if sum(camp['impressions'] for project_data in data['google_ads_data'].values() for camp in project_data if 'impressions' in camp) > 0
-                                else 0
-                            )"/>
+                                            <t t-esc="data['google_ads_data']['summary']['spend']"/>
+                                        </div>
+                                        <div class="metric-label">Gasto total</div>
+                                    </td>
+                                    <td class="metric-card">
+                                        <div class="metric-value">
+                                            <t t-esc="data['google_ads_data']['summary']['ctr']"/>%
                                         </div>
                                         <div class="metric-label">CTR</div>
                                     </td>
-                                </tr>
-
-                                <!-- Segunda fila -->
-                                <tr>
-                                    <!-- Costo Total -->
                                     <td class="metric-card">
                                         <div class="metric-value">
-                                            $
-                                            <t t-esc="'{:.2f}'.format(
-                                sum(float(camp['cost']) for project_data in data['google_ads_data'].values() for camp in project_data if 'cost' in camp)
-                            )"/>
-                                        </div>
-                                        <div class="metric-label">Costo Total</div>
-                                    </td>
-
-                                    <!-- CPC -->
-                                    <td class="metric-card">
-                                        <div class="metric-value">
-                                            $
-                                            <t t-esc="'{:.2f}'.format(
-                                sum(float(camp['cost']) for project_data in data['google_ads_data'].values() for camp in project_data if 'cost' in camp) /
-                                sum(camp['clicks'] for project_data in data['google_ads_data'].values() for camp in project_data if 'clicks' in camp)
-                                if sum(camp['clicks'] for project_data in data['google_ads_data'].values() for camp in project_data if 'clicks' in camp) > 0
-                                else 0
-                            )"/>
+                                            <t t-esc="data['google_ads_data']['summary']['cpc']"/>
                                         </div>
                                         <div class="metric-label">CPC</div>
                                     </td>
-
-                                    <!-- Conversiones -->
                                     <td class="metric-card">
                                         <div class="metric-value">
-                                            <t t-esc="sum(int(camp['all_conversions']) for project_data in data['google_ads_data'].values() for camp in project_data if 'all_conversions' in camp)"/>
+                                            <t t-esc="data['google_ads_data']['summary']['cost_per_conversion']"/>
                                         </div>
-                                        <div class="metric-label">Conversiones</div>
-                                    </td>
-
-                                    <!-- Costo por Conversión -->
-                                    <td class="metric-card">
-                                        <div class="metric-value">
-                                            $
-                                            <t t-esc="'{:.2f}'.format(
-                                sum(float(camp['cost']) for project_data in data['google_ads_data'].values() for camp in project_data if 'cost' in camp) /
-                                sum(int(camp['all_conversions']) for project_data in data['google_ads_data'].values() for camp in project_data if 'all_conversions' in camp)
-                                if sum(int(camp['all_conversions']) for project_data in data['google_ads_data'].values() for camp in project_data if 'all_conversions' in camp) > 0
-                                else 0
-                            )"/>
-                                        </div>
-                                        <div class="metric-label">Costo/Conversión</div>
+                                        <div class="metric-label">Costo por conversión</div>
                                     </td>
                                 </tr>
                             </table>
                         </div>
-
-                        <!-- Detalle de Campañas -->
+                        <!-- Detalle de Campañas de Google Ads -->
                         <div class="top-posts-container">
                             <h3>Detalle de Campañas</h3>
                             <table class="top-posts-table">
@@ -1156,209 +1066,196 @@
                                         <th class="text-center content-header">Campaña</th>
                                         <th class="text-center metric-header">Métricas</th>
                                         <th class="text-center metric-header">Rendimiento</th>
-                                        <th class="text-center metric-header">Conversiones</th>
+                                        <th class="text-center interactions-header">Conversiones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <t t-foreach="data['google_ads_data'].items()" t-as="project">
-                                        <t t-set="project_name"
-                                           t-value="env['project.project'].browse(project[0]).name"/>
-                                        <t t-foreach="[item for item in project[1] if 'keywords_summary' not in item]"
-                                           t-as="camp">
-                                            <tr>
-                                                <!-- Columna 1: Nombre Campaña -->
-                                                <td>
-                                                    <div class="post-content text-center">
-                                                        <div class="post-message">
-                                                            <t t-esc="camp.get('name', 'Sin nombre')"/>
-                                                        </div>
-                                                        <div class="post-message" style="font-size: 12px; color: #666;">
-                                                            Proyecto:
-                                                            <t t-esc="project_name"/>
-                                                        </div>
+                                    <t t-foreach="data['google_ads_data']['campaigns']" t-as="camp">
+                                        <tr>
+                                            <td>
+                                                <div class="post-content text-center">
+                                                    <div class="post-message">
+                                                        <t t-esc="camp['name']"/>
                                                     </div>
-                                                </td>
-
-                                                <!-- Columna 2: Métricas -->
-                                                <td class="metric-value">
-                                                    <div class="interactions-container">
-                                                        <div class="interaction-metric">
-                                                            <div class="likes-count">
-                                                                <t t-esc="camp.get('impressions', 0)"/>
-                                                            </div>
-                                                            <div class="metric-label">Impresiones</div>
+                                                </div>
+                                            </td>
+                                            <td class="metric-value">
+                                                <div class="interactions-container">
+                                                    <div class="interaction-metric">
+                                                        <div class="likes-count">
+                                                            <t t-esc="camp['impressions']"/>
                                                         </div>
-                                                        <div class="interaction-metric">
-                                                            <div class="likes-count">
-                                                                <t t-esc="camp.get('clicks', 0)"/>
-                                                            </div>
-                                                            <div class="metric-label">Clicks</div>
-                                                        </div>
-                                                        <div class="interaction-metric">
-                                                            <div class="comments-count">
-                                                                $
-                                                                <t t-esc="'{:.2f}'.format(float(camp.get('cost', 0)))"/>
-                                                            </div>
-                                                            <div class="metric-label">Costo</div>
-                                                        </div>
+                                                        <div class="metric-label">Impresiones</div>
                                                     </div>
-                                                </td>
-
-                                                <!-- Columna 3: Rendimiento -->
-                                                <td class="metric-value">
-                                                    <div class="interactions-container">
-                                                        <div class="interaction-metric">
-                                                            <div class="likes-count">
-                                                                <t t-esc="'{:.2f}%'.format(float(camp.get('ctr', 0)))"/>
-                                                            </div>
-                                                            <div class="metric-label">CTR</div>
+                                                    <div class="interaction-metric">
+                                                        <div class="comments-count">
+                                                            <t t-esc="camp['clicks']"/>
                                                         </div>
-                                                        <div class="interaction-metric">
-                                                            <div class="comments-count">
-                                                                $
-                                                                <t t-esc="'{:.2f}'.format(float(camp.get('average_cpc', 0)))"/>
-                                                            </div>
-                                                            <div class="metric-label">CPC</div>
-                                                        </div>
-                                                        <div class="interaction-metric">
-                                                            <div class="shares-count">
-                                                                $
-                                                                <t t-esc="'{:.2f}'.format((float(camp.get('cost', 0))/camp.get('impressions', 1)*1000) if camp.get('impressions', 0) > 0 else 0.0"/>
-                                                            </div>
-                                                            <div class="metric-label">CPM</div>
-                                                        </div>
+                                                        <div class="metric-label">Clicks</div>
                                                     </div>
-                                                </td>
-
-                                                <!-- Columna 4: Conversiones -->
-                                                <td class="metric-value">
-                                                    <div class="interactions-container">
-                                                        <div class="interaction-metric">
-                                                            <div class="likes-count">
-                                                                <t t-esc="int(camp.get('all_conversions', 0))"/>
-                                                            </div>
-                                                            <div class="metric-label">Conversiones</div>
+                                                    <div class="interaction-metric">
+                                                        <div class="shares-count">
+                                                            <t t-esc="camp['cost']"/>
                                                         </div>
-                                                        <div class="interaction-metric">
-                                                            <div class="comments-count">
-                                                                <t t-esc="'{:.2f}%'.format(float(camp.get('conversion_rate', 0)))"/>
-                                                            </div>
-                                                            <div class="metric-label">Tasa Conv.</div>
-                                                        </div>
-                                                        <div class="interaction-metric">
-                                                            <div class="shares-count">
-                                                                $
-                                                                <t t-esc="'{:.2f}'.format(float(camp.get('cost_per_all_conversions', 0)))"/>
-                                                            </div>
-                                                            <div class="metric-label">Costo/Conv.</div>
-                                                        </div>
+                                                        <div class="metric-label">Gasto</div>
                                                     </div>
-                                                </td>
-                                            </tr>
-                                        </t>
+                                                </div>
+                                            </td>
+                                            <td class="metric-value">
+                                                <div class="interactions-container">
+                                                    <div class="interaction-metric">
+                                                        <div class="likes-count">
+                                                            <t t-esc="camp['ctr'] * 100"/>%
+                                                        </div>
+                                                        <div class="metric-label">CTR</div>
+                                                    </div>
+                                                    <div class="interaction-metric">
+                                                        <div class="comments-count">
+                                                            <t t-esc="camp['average_cpc']"/>
+                                                        </div>
+                                                        <div class="metric-label">CPC Promedio</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="metric-value">
+                                                <div class="interactions-container">
+                                                    <div class="interaction-metric">
+                                                        <div class="shares-count">
+                                                            <t t-esc="camp['all_conversions']"/>
+                                                        </div>
+                                                        <div class="metric-label">Conversiones</div>
+                                                    </div>
+                                                    <div class="interaction-metric">
+                                                        <div class="comments-count">
+                                                            <t t-esc="camp['cost_per_all_conversions']"/>
+                                                        </div>
+                                                        <div class="metric-label">Costo por Conversión</div>
+                                                    </div>
+                                                    <div class="interaction-metric">
+                                                        <div class="likes-count">
+                                                            <t t-esc="camp['conversion_rate']"/>%
+                                                        </div>
+                                                        <div class="metric-label">Tasa de conversión</div>
+                                                    </div>
+                                                    <div class="interaction-metric">
+                                                        <div class="comments-count">
+                                                            <t t-esc="camp['interaction_rate'] * 100"/>%
+                                                        </div>
+                                                        <div class="metric-label">Tasa de Interacción</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     </t>
                                 </tbody>
                             </table>
                         </div>
 
-                        <!-- Top Palabras Clave -->
-                        <div class="top-posts-container"
-                             t-if="any('keywords_summary' in item for project_data in data['google_ads_data'].values() for item in project_data)">
-                            <h3>Top Palabras Clave</h3>
+                        <!-- Palabras clave -->
+                        <div class="top-posts-container">
+                            <h3>Resumen por Palabras Clave</h3>
                             <table class="top-posts-table">
                                 <thead>
                                     <tr class="text-center header-google-ads">
-                                        <th class="text-center content-header">Palabra Clave</th>
-                                        <th class="text-center metric-header">Métricas</th>
-                                        <th class="text-center metric-header">Rendimiento</th>
+                                        <th>Palabra Clave</th>
+                                        <th>Impresiones</th>
+                                        <th>Clicks</th>
+                                        <th>Gasto</th>
+                                        <th>Conversión</th>
+                                        <th>Costo por Conversión</th>
+                                        <th>CPC Promedio</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <t t-foreach="data['google_ads_data'].items()" t-as="project">
-                                        <t t-set="keywords_data"
-                                           t-value="next((item['keywords_summary'] for item in project[1] if 'keywords_summary' in item), [])"/>
-                                        <t t-foreach="keywords_data" t-as="keyword">
-                                            <tr>
-                                                <!-- Columna 1: Palabra Clave -->
-                                                <td>
-                                                    <div class="post-content text-center">
-                                                        <div class="post-message">
-                                                            <t t-esc="keyword.get('keyword', '')"/>
-                                                        </div>
-                                                    </div>
-                                                </td>
-
-                                                <!-- Columna 2: Métricas -->
-                                                <td class="metric-value">
-                                                    <div class="interactions-container">
-                                                        <div class="interaction-metric">
-                                                            <div class="likes-count">
-                                                                <t t-esc="keyword.get('impressions', 0)"/>
-                                                            </div>
-                                                            <div class="metric-label">Impresiones</div>
-                                                        </div>
-                                                        <div class="interaction-metric">
-                                                            <div class="likes-count">
-                                                                <t t-esc="keyword.get('clicks', 0)"/>
-                                                            </div>
-                                                            <div class="metric-label">Clicks</div>
-                                                        </div>
-                                                        <div class="interaction-metric">
-                                                            <div class="comments-count">
-                                                                $
-                                                                <t t-esc="'{:.2f}'.format(float(keyword.get('cost', 0)))"/>
-                                                            </div>
-                                                            <div class="metric-label">Costo</div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-
-                                                <!-- Columna 3: Rendimiento -->
-                                                <td class="metric-value">
-                                                    <div class="interactions-container">
-                                                        <div class="interaction-metric">
-                                                            <div class="likes-count">
-                                                                $
-                                                                <t t-esc="'{:.2f}'.format(float(keyword.get('average_cpc', 0)))"/>
-                                                            </div>
-                                                            <div class="metric-label">CPC</div>
-                                                        </div>
-                                                        <div class="interaction-metric">
-                                                            <div class="comments-count">
-                                                                <t t-esc="keyword.get('conversions', 0)"/>
-                                                            </div>
-                                                            <div class="metric-label">Conversiones</div>
-                                                        </div>
-                                                        <div class="interaction-metric">
-                                                            <div class="shares-count">
-                                                                $
-                                                                <t t-esc="'{:.2f}'.format(float(keyword.get('cost_per_conversion', 0)))"/>
-                                                            </div>
-                                                            <div class="metric-label">Costo/Conv.</div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        </t>
+                                    <t t-foreach="data['google_ads_data']['keywords_summary']" t-as="kw">
+                                        <tr>
+                                            <td>
+                                                <t t-esc="kw['keyword']"/>
+                                            </td>
+                                            <td class="text-center">
+                                                <t t-esc="kw['impressions']"/>
+                                            </td>
+                                            <td class="text-center">
+                                                <t t-esc="kw['clicks']"/>
+                                            </td>
+                                            <td class="text-center">
+                                                <t t-esc="kw['cost']"/>
+                                            </td>
+                                            <td class="text-center">
+                                                <t t-esc="kw['conversions']"/>
+                                            </td>
+                                            <td class="text-center">
+                                                <t t-esc="kw['cost_per_conversion']"/>
+                                            </td>
+                                            <td class="text-center">
+                                                <t t-esc="kw['average_cpc']"/>
+                                            </td>
+                                        </tr>
                                     </t>
                                 </tbody>
                             </table>
                         </div>
-                    </t>
-                    <t t-else="">
-                        <div class="no-data-message">
-                            <h3>No se encontraron datos de Google Ads</h3>
-                            <p>Verifique que:</p>
-                            <ul>
-                                <li>El proyecto tenga una cuenta de Google Ads configurada</li>
-                                <li>Existan campañas asociadas al proyecto</li>
-                                <li>Las campañas tengan datos en el período seleccionado</li>
-                            </ul>
-                        </div>
-                    </t>
-                </div>
-                <div class="page-break"/>
+
+
+                    </div>
+                    <div class="page-break"/>
+                </t>
                 <!-- #############################################################  Footer -->
+                <t t-if="data.get('google_ads_data') or data.get('meta_ads_data')">
+                    <h3>Leyenda</h3>
+                    <div class="detalles" style="display: flex; gap: 40px;">
+                        <ul style="flex: 1; padding-left: 20px;">
+                            <li>
+                                <strong>Total Campañas:</strong>
+                                Número de campañas publicitarias activas en el periodo analizado
+                            </li>
+                            <li>
+                                <strong>Moneda:</strong>
+                                Tipo de moneda utilizada para los gastos
+                            </li>
+                            <li>
+                                <strong>Impresiones:</strong>
+                                Veces que los anuncios fueron mostrados a usuarios
+                            </li>
+                            <li>
+                                <strong>Clicks:</strong>
+                                Veces que los usuarios hicieron clic en los anuncios
+                            </li>
+                            <li>
+                                <strong>Alcance:</strong>
+                                Usuarios únicos que vieron los anuncios
+                            </li>
+                            <li>
+                                <strong>Gasto Total:</strong>
+                                Inversión total en publicidad
+                            </li>
+                            <li>
+                                <strong>CTR:</strong>
+                                Tasa de clics (Clicks/Impresiones) - Indica efectividad del creativo
+                            </li>
+                            <li>
+                                <strong>CPC:</strong>
+                                Costo por clic (Gasto/Clicks)
+                            </li>
+                            <li>
+                                <strong>CPM:</strong>
+                                Costo por mil impresiones
+                            </li>
+                            <li>
+                                <strong>CPP:</strong>
+                                Costo por persona alcanzada
+                            </li>
+                            <li>
+                                <strong>Frecuencia:</strong>
+                                Promedio de veces que cada usuario vio los anuncios (Impresiones/Alcance)
+                            </li>
+                            <li>
+                                <strong>Conversaciones Iniciadas:</strong>
+                                Interacciones que generaron diálogos con la empresa (mensajes, comentarios, etc.)
+                            </li>
+                        </ul>
+                    </div>
+                </t>
                 <div class="footer" align="center">
                     <hr/>
                     <p style="font-size:smaller;">Desarrollado por GenioLibre</p>
