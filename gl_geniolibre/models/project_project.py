@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-:
 import datetime, time, pytz, requests
+from unittest import result
 
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
@@ -8,7 +9,7 @@ from collections import defaultdict
 from datetime import datetime
 from google.ads.googleads.client import GoogleAdsClient
 
-API_VERSION = "v22.0"
+API_VERSION = "v23.0"
 
 class GoogleAdCampaign(models.Model):
     _name = 'google.ad.campaigns'
@@ -135,6 +136,10 @@ class project_project(models.Model):
 
         for record in self:
             # Asignar valores "actuales" en caso de no estar en 'vals'
+            if record.date_start and record.date:
+                if (record.date - record.date_start).days > 30:
+                    raise ValidationError("El rango entre fechas no puede ser mayor a 30 días.")
+
             updated_partner_id = partner_id or record.partner_id.id
             updated_project_type = project_type or record.project_type
 
@@ -626,7 +631,7 @@ class project_project(models.Model):
             }
             ads_response = requests.get(ads_url, params=ads_params).json()
             ads_data = ads_response.get('data', [])
-
+            print(ads_data)
             if not ads_data:
                 return None
 
@@ -635,7 +640,7 @@ class project_project(models.Model):
             if not creative_id:
                 return None
 
-            creative_url = f"https://graph.facebook.com//{creative_id}"
+            creative_url = f"https://graph.facebook.com/{API_VERSION}/{creative_id}"
             creative_params = {
                 'access_token': self.partner_page_access_token,
                 'fields': 'object_story_spec,thumbnail_url,image_url'
@@ -643,7 +648,8 @@ class project_project(models.Model):
 
             creative_response = requests.get(creative_url, params=creative_params).json()
             ad_image_url = creative_response.get('thumbnail_url', {})
-
+            print(ad_image_url)
+            print(creative_response)
             return ad_image_url
 
         if not self.partner_page_access_token:
