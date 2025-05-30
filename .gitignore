@@ -24,3 +24,9 @@ muk_web_dialog/models/__pycache__/
 muk_web_theme/__pycache__/
 
 muk_web_theme/models/__pycache__/
+
+*.pyc
+
+*.pdf
+
+*.xlsx
