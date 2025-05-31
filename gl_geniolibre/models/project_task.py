@@ -522,8 +522,11 @@ class project_task(models.Model):
             return response_data["data"]["publish_id"]
 
         # Validaciones iniciales (detienen todo el proceso si fallan)
-        if self.fecha_publicacion > fields.Datetime.now() or not self.fecha_publicacion :
-            raise ValidationError("Debe seleccionar una fecha de publicación'")
+        if self.fecha_publicacion > fields.Datetime.now():
+            return
+
+        if not self.fecha_publicacion:
+            raise ValidationError("Debe seleccionar una fecha de publicación")
 
         if self.state != "03_approved":
             raise ValidationError("El estado de la Tarea debe ser 'Aprobado'")
