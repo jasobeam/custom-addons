@@ -441,13 +441,6 @@ class project_project(models.Model):
                         total_reactions = sum(reactions_by_type.values()) if isinstance(reactions_by_type, dict) else 0
 
                         # 10. Construir objeto del post
-                        def limpiar_texto(texto):
-                            # Normalizar texto eliminando negritas/itálicas Unicode (NFKD)
-                            texto_normal = unicodedata.normalize('NFKD', texto)
-                            texto_sin_emojis = re.sub(r'[^\x00-\x7F]+', '', texto_normal)  # Elimina emojis y símbolos fuera de ASCII
-                            return texto_sin_emojis
-
-                        # 10. Construir objeto del post
                         post_data = {
                             'type': post_type,
                             'reach': reach,
@@ -456,7 +449,7 @@ class project_project(models.Model):
                             'reactions': total_reactions,
                             'reactions_by_type': reactions_by_type,
                             'picture_url': post.get('full_picture', ''),
-                            'message': (post.get(limpiar_texto('message'), '') or '')[:50],
+                            'message': (post.get('message', '') or '')[:50],
                             'created_time': post.get('created_time', ''),
                             'post_id': post.get('id', ''),
                             'comments': total_comments,
