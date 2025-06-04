@@ -28,16 +28,17 @@
         
         'views/gl_res_config_settings_views.xml',
         'views/gl_sale_order_line_views.xml',
+        'views/gl_whatsapp_chatroom_views.xml',
+
 
         'report/gl_sale_pre_quote.xml',
         'report/gl_sale_order_report.xml',
     ],
-    "assets": {
-        "web.assets_backend": [
-
-        ],
-        'web.report_assets_common': [
-
+    'assets': {
+        'web.assets_backend': [
+            'gl_tithor/static/src/components/ChatroomView.js',
+            'gl_tithor/static/src/components/ChatroomView.xml',
+            'gl_tithor/static/src/components/ChatroomView.css',
         ],
     },
     # only loaded in demonstration mode

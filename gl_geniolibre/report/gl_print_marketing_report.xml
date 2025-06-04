@@ -46,7 +46,7 @@
                     color: #555;
                     }
                     body {
-                    font-family: 'Roboto', 'Helvetica', 'Arial', 'Noto Color Emoji', 'Twitter Color Emoji', sans-serif;
+                    font-family: 'NotoSans', 'Roboto', 'Helvetica', 'Arial', 'Noto Color Emoji', 'Twitter Color Emoji', sans-serif;
                     -webkit-print-color-adjust: exact !important;
                     color: #333;
                     line-height: 1.5;

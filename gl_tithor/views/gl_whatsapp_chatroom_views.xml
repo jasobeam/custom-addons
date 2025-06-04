@@ -1,0 +1,119 @@
+<!-- views/whatsapp_chatroom_views.xml -->
+<odoo>
+    <record id="view_whatsapp_chatroom_tree" model="ir.ui.view">
+        <field name="name">whatsapp.chatroom.list</field>
+        <field name="model">whatsapp.chatroom</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="phone_number"/>
+                <field name="last_message"/>
+                <field name="last_message_time"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_whatsapp_chatroom_form" model="ir.ui.view">
+        <field name="name">whatsapp.chatroom.form</field>
+        <field name="model">whatsapp.chatroom</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="set_closed" type="object" string="Cerrar"/>
+                    <button name="set_open" type="object" string="Reabrir"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="phone_number"/>
+                        <field name="partner_id"/>
+                        <field name="state"/>
+                        <field name="has_partner"/>
+
+                    </group>
+                    <group>
+                        <field name="last_message"/>
+                        <field name="last_message_time"/>
+                    </group>
+                    <notebook>
+                        <page string="Mensajes">
+                            <field name="message_ids">
+                                <list editable="bottom">
+                                    <field name="timestamp"/>
+                                    <field name="sender"/>
+                                    <field name="message"/>
+                                    <field name="message_type"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_whatsapp_chatroom" model="ir.actions.act_window">
+        <field name="name">Chatrooms</field>
+        <field name="res_model">whatsapp.chatroom</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_whatsapp_root"
+              name="WhatsApp Chat"
+              sequence="10"/>
+
+    <menuitem id="menu_whatsapp_chatroom"
+              name="Chatrooms"
+              parent="menu_whatsapp_root"
+              action="action_whatsapp_chatroom"
+              sequence="20"/>
+
+    <record id="action_whatsapp_chatroom_owl" model="ir.actions.client">
+        <field name="name">WhatsApp Chatroom</field>
+        <field name="tag">whatsapp.chatroom.owl</field>
+    </record>
+
+    <menuitem id="menu_whatsapp_chatroom_owl"
+              name="Chats Activos"
+              parent="menu_whatsapp_root"
+              action="action_whatsapp_chatroom_owl"
+              sequence="30"/>
+
+    <!--    Aqui empieza el codigo de Respuestas automaticas ##################################### -->
+    <record id="view_mensajes_automaticos_list" model="ir.ui.view">
+        <field name="name">mensajes.automaticos.list</field>
+        <field name="model">mensajes.automaticos</field>
+        <field name="arch" type="xml">
+            <list string="Mensajes Automáticos">
+                <!-- Campos principales -->
+                <field name="name" string="Nombre"/>
+                <field name="activo" string="Activo"/>
+                <field name="prioridad" string="Prioridad"/>
+
+                <!-- Botones de acción -->
+                <field name="contenido" invisible="1"/>
+
+            </list>
+        </field>
+    </record>
+
+    <!-- Definición de la acción de ventana -->
+    <record id="action_mensajes_automaticos" model="ir.actions.act_window">
+        <field name="name">Mensajes Automáticos</field>
+        <field name="res_model">mensajes.automaticos</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No hay mensajes automáticos configurados
+            </p>
+        </field>
+    </record>
+
+    <!-- Menú para acceder a la vista -->
+    <menuitem id="menu_mensajes_automaticos"
+              name="Mensajes Automáticos"
+              parent="menu_whatsapp_root"
+              action="action_mensajes_automaticos"
+              sequence="10"/>
+</odoo>

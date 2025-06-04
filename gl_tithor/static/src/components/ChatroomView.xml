@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="whatsapp.chatroom.owl">
+        <div class="o_chatroom_view" style="display: flex; height: 100%;">
+            <!-- Chatroom List -->
+            <div class="chatroom-list">
+                <h4>Chatrooms activos</h4>
+                <ul>
+                    <t t-if="state.chatrooms.length">
+                        <t t-foreach="state.chatrooms" t-as="chat" t-key="chat.id">
+                            <li t-on-click="() => this.selectChatroom(chat)" class="chatroom-item">
+                                <div>
+                                    <strong><t t-esc="chat.name"/></strong>
+                                    <span class="chatroom-last-time"
+                                          t-esc="chat.last_message_time ? (new Date(chat.last_message_time)).toLocaleTimeString() : ''"/>
+                                </div>
+                                <div class="chatroom-last-msg"
+                                     t-esc="chat.last_message.length > 40 ? chat.last_message.slice(0, 40) + '...' : chat.last_message"/>
+                            </li>
+                        </t>
+                    </t>
+                    <t t-else="">
+                        <li class="chatroom-item"><em>No hay chats disponibles.</em></li>
+                    </t>
+                </ul>
+            </div>
+            <!-- Chat Messages -->
+            <div class="chatroom-messages">
+                <t t-if="!state.selected">
+                    <em class="chatroom-placeholder">Seleccione un chatroom para ver mensajes.</em>
+                </t>
+                <h4 t-if="state.selected"><t t-esc="state.selected.name"/>
+                    (Mensajes)</h4>
+                <div t-if="state.selected" class="container">
+                    <ul t-if="state.selected" class="chatroom-message-list">
+                        <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
+                            <li t-att-class="[
+                                'chatroom-message-item',
+                                msg.sender === 'user' ? 'chatroom-msg-user' :
+                                msg.sender === 'bot' ? 'chatroom-msg-bot' :
+                                'chatroom-msg-client'
+                            ].join(' ')">
+                            <t t-esc="msg.message"/>
+                                <t t-esc="msg.sender"/>
+                        </li>
+                        </t>
+                    </ul>
+
+                    <!-- Formulario para enviar mensajes -->
+                    <div class="chatroom-message-form">
+                        <form t-attf-action="#" onsubmit="return false;" class="oe_chat_form">
+                            <div class="chatroom-input-row">
+                                <input t-ref="inputMessage"
+                                       type="text"
+                                       name="message"
+                                       placeholder="Escribe tu mensaje..."
+                                       class="chatroom-input"
+                                       oninput="this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';"/>
+                                <!-- Tooltip de Emojis -->
+                                <button type="button"
+                                        class="chatroom-btn"
+                                        title="Emojis"
+                                        t-on-click="() => this.toggleEmojiPicker()">
+                                    <i class="fa fa-smile-o"/>
+                                </button>
+                                <!-- PopUp Emojis -->
+                                <t t-if="state.showEmojiPicker">
+                                    <div id="emoji-picker" class="chatroom-emoji-picker">
+                                        <span t-on-click="() => insertEmoji('😀')">😀</span>
+                                        <span t-on-click="() => insertEmoji('❤️')">❤️</span>
+                                        <span t-on-click="() => insertEmoji('😍')">😍</span>
+                                        <span t-on-click="() => insertEmoji('🤣')">🤣</span>
+                                        <span t-on-click="() => insertEmoji('😊')">😊</span>
+                                        <span t-on-click="() => insertEmoji('🙏')">🙏</span>
+                                        <span t-on-click="() => insertEmoji('😭')">😭</span>
+                                        <span t-on-click="() => insertEmoji('🥰')">🥰</span>
+                                        <span t-on-click="() => insertEmoji('😘')">😘</span>
+                                        <span t-on-click="() => insertEmoji('😅')">😅</span>
+                                        <span t-on-click="() => insertEmoji('👍')">👍</span>
+                                        <span t-on-click="() => insertEmoji('🔥')">🔥</span>
+                                        <span t-on-click="() => insertEmoji('💕')">💕</span>
+                                        <span t-on-click="() => insertEmoji('😎')">😎</span>
+                                        <span t-on-click="() => insertEmoji('💔')">💔</span>
+                                        <span t-on-click="() => insertEmoji('🤔')">🤔</span>
+                                        <span t-on-click="() => insertEmoji('😁')">😁</span>
+                                        <span t-on-click="() => insertEmoji('😢')">😢</span>
+                                        <span t-on-click="() => insertEmoji('🎉')">🎉</span>
+                                        <span t-on-click="() => insertEmoji('🥺')">🥺</span>
+                                        <span t-on-click="() => insertEmoji('😆')">😆</span>
+                                        <span t-on-click="() => insertEmoji('😋')">😋</span>
+                                        <span t-on-click="() => insertEmoji('🤗')">🤗</span>
+                                        <span t-on-click="() => insertEmoji('😜')">😜</span>
+                                        <span t-on-click="() => insertEmoji('😡')">😡</span>
+                                        <span t-on-click="() => insertEmoji('🤩')">🤩</span>
+                                        <span t-on-click="() => insertEmoji('🙈')">🙈</span>
+                                        <span t-on-click="() => insertEmoji('😴')">😴</span>
+                                    </div>
+                                </t>
+                                <!-- Adjuntar archivos -->
+
+                                <!-- Input file oculto con accept para limitar tipos -->
+                                <input type="file"
+                                       t-ref="file-input"
+                                       class="d-none"
+                                       t-on-change="handleFileChange"
+                                       accept="image/*,.pdf,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
+
+                                <!-- Botón adjuntar -->
+                                <button type="button"
+                                        class="chatroom-btn"
+                                        title="Adjuntar archivo (Imagen, PDF o Excel)"
+                                        t-on-click="openFilePicker">
+                                    <i class="fa fa-paperclip"/>
+                                </button>
+
+                                <!-- Vista previa del archivo adjunto -->
+                                <t t-if="state.attachedFile">
+                                    <div class="attachment-preview mt-2">
+                                        <t t-if="state.fileType === 'image'">
+                                            <img t-att-src="state.filePreview" class="preview-image"
+                                                 style="max-height: 100px;"/>
+                                        </t>
+                                        <t t-else="">
+                                            <div class="file-preview">
+                                                <t t-if="state.fileType === 'pdf'">
+                                                    <i class="fa fa-file-pdf-o"
+                                                       style="font-size: 2em; color: #e74c3c;"/>
+                                                </t>
+                                                <t t-elif="state.fileType === 'excel'">
+                                                    <i class="fa fa-file-excel-o"
+                                                       style="font-size: 2em; color: #2ecc71;"/>
+                                                </t>
+                                                <div t-esc="state.fileName" class="text-truncate"
+                                                     style="max-width: 150px;"/>
+                                            </div>
+                                        </t>
+                                        <button type="button"
+                                                class="btn btn-sm btn-danger ml-2"
+                                                t-on-click="removeAttachment">
+                                            <i class="fa fa-trash"/>
+                                        </button>
+                                    </div>
+                                </t>
+
+                                <button type="submit"
+                                        class="chatroom-send-btn">
+                                    Enviar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <!-- Forms -->
+            <div class="chatroom-opciones">
+                <t t-if="!state.selected">
+                    <em class="chatroom-placeholder">Seleccione un chatroom para ver las opciones.</em>
+                </t>
+                <!-- Tabs headers -->
+                <div t-if="state.selected"
+                     style="margin-top: 8px; display: flex; border-bottom: 1px solid #ccc; margin-bottom: 10px;">
+                    <button t-on-click="() => this.state.activeTab = 'reply'"
+                            t-attf-class="tab-button #{this.state.activeTab === 'reply' ? 'active' : ''}">
+                        <i class="fa fa-robot"/>ChatBot
+                    </button>
+                    <button t-on-click="() => this.state.activeTab = 'info'"
+                            t-attf-class="tab-button #{this.state.activeTab === 'info' ? 'active' : ''}">
+                        <i class="fa fa-user"/>Cliente
+                    </button>
+                </div>
+                <!-- Tabs content -->
+                <div t-if="state.selected" style="flex:1; overflow-y: auto;">
+                    <t t-if="this.state.activeTab === 'reply'">
+                        <div class="o_chat_reply_container bg-white p-4 rounded shadow-sm">
+                            <!-- Título de sección -->
+                            <h4 class="text-primary mb-3 border-bottom pb-2">Respuestas Rápidas</h4>
+                            <div class="border p-4">
+                                <!-- Selector de mensajes automáticos -->
+                                <div class="d-flex align-items-center mb-3 gap-2">
+                                    <select class="form-select o_input flex-grow-1"
+                                            t-on-change="handleSelectMessage">
+                                        <option value="">Selecciona una respuesta rápida</option>
+                                        <t t-foreach="state.suggestedMessages" t-as="msg" t-key="msg.id">
+                                            <option t-att-value="msg.id" t-esc="msg.name"/>
+                                        </t>
+                                    </select>
+                                </div>
+
+                                <!-- Vista previa del mensaje -->
+                                <div class="mb-3">
+                                    <h5 class="fw-normal mb-2"><strong>Vista Previa</strong></h5>
+                                    <div class="bg-100 border-start border-3 border-primary p-3 rounded">
+                                        <t t-if="state.selectedMessage">
+                                            <p class="mb-0" t-esc="state.selectedMessage.contenido"/>
+                                        </t>
+                                        <t t-else="">
+                                            <p class="mb-0 text-muted fst-italic">Selecciona un mensaje para previsualizar</p>
+                                        </t>
+                                    </div>
+                                </div>
+
+                                <!-- Botón de enviar -->
+                                <button t-on-click="sendSuggestedMessage"
+                                        class="btn btn-primary w-100 mb-3"
+                                        t-att-disabled="!state.selectedMessage">
+                                    <i class="fa fa-paper-plane me-2"/>
+                                    Enviar Respuesta Seleccionada
+                                </button>
+
+
+                            </div>
+                            <!-- Separador -->
+                            <div class="d-flex align-items-center my-3">
+                                <hr class="flex-grow-1"/>
+                                <span class="px-3 text-muted small">O</span>
+                                <hr class="flex-grow-1"/>
+                            </div>
+                            <!-- Mensaje personalizado -->
+                            <h4 class="text-primary mb-3 border-bottom pb-2">Respuesta Sugerida por IA</h4>
+
+                            <div class="border p-4">
+                                <div class="input-group mb-3 w-100">
+                                    <textarea
+                                            name="message"
+                                            placeholder="Escribe tu mensaje personalizado..."
+                                            class="form-control o_input"
+                                            rows="3"
+                                            style="resize: none; min-height: 80px;"
+                                            t-ref="customMessageInput"/>
+                                </div>
+                                <button
+                                        class="btn btn-primary w-100 mb-3"
+                                        type="button"
+                                        t-on-click="sendCustomMessage">
+                                    <i class="fa fa-paper-plane me-2"/>
+                                    Enviar Mensaje sugerido
+                                </button>
+                            </div>
+
+                        </div>
+                    </t>
+                    <!-- Tab Información -->
+                    <t t-if="this.state.activeTab === 'info'">
+                        <!-- Sección del partner -->
+                        <div class="partner-info">
+                            <t t-if="state.partnerData !== undefined">
+                                <t t-if="state.partnerData">
+                                    <!-- Mostrar datos del partner -->
+                                    <div class="partner-card">
+                                        <img t-if="state.partnerData.image_1920"
+                                             t-att-src="'data:image/png;base64,' + state.partnerData.image_1920"
+                                             class="partner-avatar"/>
+                                        <div class="partner-details">
+                                            <h3 t-esc="state.partnerData.name"/>
+                                            <p t-if="state.partnerData.email">
+                                                <i class="fa fa-envelope"/>
+                                                <span t-esc="state.partnerData.email"/>
+                                            </p>
+                                            <p t-if="state.partnerData.phone or state.partnerData.mobile">
+                                                <i class="fa fa-phone"/>
+                                                <span t-esc="state.partnerData.phone || state.partnerData.mobile"/>
+                                            </p>
+                                            <p t-if="state.partnerData.street">
+                                                <i class="fa fa-map-marker"/>
+                                                <span t-esc="state.partnerData.street + (state.partnerData.city ? ', ' + state.partnerData.city : '')"/>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </t>
+                                <t t-else="">
+                                    <!-- Mostrar mensaje solo cuando sabemos que no hay partner -->
+                                    <div class="alert alert-warning" t-att-class="{ 'd-none': state.loadingPartner }">
+                                        ⚠ No hay cliente asociado. Asigna un contacto para ver sus detalles.
+                                    </div>
+                                </t>
+                            </t>
+                        </div>
+                    </t>
+
+                </div>
+            </div>
+        </div>
+    </t>
+    <t t-name="whatsapp.PartnerFormContainer" owl="1">
+    <div class="partner-form-container">
+        <t t-if="state.loading">
+            <div class="text-center py-4">
+                <i class="fa fa-spinner fa-spin"/> Cargando formulario...
+            </div>
+        </t>
+
+        <t t-elif="state.error">
+            <div class="alert alert-danger">
+                Error al cargar el formulario: <t t-esc="state.error.message"/>
+            </div>
+        </t>
+
+        <t t-elif="state.arch">
+            <FormRenderer
+                arch="state.arch"
+                fields="state.fields"
+                resModel="'res.partner'"
+                resId="props.resId"
+                record="state.record"
+                onRecordUpdated="(ev) => this.onRecordUpdated(ev)"
+            />
+        </t>
+    </div>
+</t>
+</templates>

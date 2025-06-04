@@ -338,19 +338,18 @@ class project_project(models.Model):
         all_data = []
         url = f"{BASE_URL}/insights"
         original_since, original_until = int(since), int(until)
-
         while url:
             try:
                 response = requests.get(url, params=params if '?' not in url else {}, timeout=10)
                 response.raise_for_status()
                 result = response.json()
+
             except requests.exceptions.RequestException as e:
                 raise ValidationError(f"Error fetching insights data: {e}")
 
 
             all_data.extend(result.get('data', []))
             next_url = result.get('paging', {}).get('next')
-
             if next_url:
                 parsed_url = urlparse(next_url)
                 query = parse_qs(parsed_url.query)
@@ -374,7 +373,6 @@ class project_project(models.Model):
                 totals[name] = values[-1]['value'] if values else 0
             else:
                 totals[name] = sum(entry['value'] for entry in values if isinstance(entry['value'], (int, float)))
-
         # Procesar publicaciones
         post_url = f"{BASE_URL}/feed"
         post_params = {
@@ -396,67 +394,96 @@ class project_project(models.Model):
             'shares': 0
         })
 
-        while post_url:
+        # 3. Bucle principal de paginación
+        page_count = 0
+        max_pages = 50  # Límite de páginas para evitar bucles infinitos
+
+        while post_url and page_count < max_pages:
             try:
+                # 4. Obtener datos de la API
                 post_response = requests.get(post_url, params=post_params, timeout=15)
                 post_response.raise_for_status()
                 post_result = post_response.json()
+
+                # 5. Debug: Mostrar respuesta cruda
+
+                # 6. Procesar cada post
+                posts = post_result.get('data', [])
+                for post in posts:
+                    try:
+                        # 7. Extraer datos básicos del post
+                        attachments = post.get('attachments', {}).get('data', [
+                            {}
+                        ])
+                        post_type = attachments[0].get('type', 'post').lower() if attachments else 'post'
+
+                        # 8. Procesar insights
+                        insights = post.get('insights', {}).get('data', [])
+                        insights_dict = {}
+                        for item in insights:
+                            try:
+                                insights_dict[item['name']] = item['values'][0]['value']
+                            except (KeyError, IndexError, TypeError):
+                                raise ValidationError(KeyError, IndexError, TypeError)
+
+                        # 9. Calcular métricas
+                        reach = insights_dict.get('post_impressions', 0)
+                        organic_reach = insights_dict.get('post_impressions_organic', 0)
+                        paid_reach = insights_dict.get('post_impressions_paid', 0)
+
+                        shares_data = post.get('shares', {})
+                        total_shares = shares_data.get('count', 0) if isinstance(shares_data, dict) else 0
+
+                        comments_data = post.get('comments', {}).get('summary', {})
+                        total_comments = comments_data.get('total_count', 0)
+
+                        reactions_by_type = insights_dict.get('post_reactions_by_type_total', {})
+                        total_reactions = sum(reactions_by_type.values()) if isinstance(reactions_by_type, dict) else 0
+
+                        # 10. Construir objeto del post
+                        def limpiar_texto(texto):
+                            # Normalizar texto eliminando negritas/itálicas Unicode (NFKD)
+                            texto_normal = unicodedata.normalize('NFKD', texto)
+                            texto_sin_emojis = re.sub(r'[^\x00-\x7F]+', '', texto_normal)  # Elimina emojis y símbolos fuera de ASCII
+                            return texto_sin_emojis
+
+                        # 10. Construir objeto del post
+                        post_data = {
+                            'type': post_type,
+                            'reach': reach,
+                            'organic_reach': organic_reach,
+                            'paid_reach': paid_reach,
+                            'reactions': total_reactions,
+                            'reactions_by_type': reactions_by_type,
+                            'picture_url': post.get('full_picture', ''),
+                            'message': (post.get(limpiar_texto('message'), '') or '')[:50],
+                            'created_time': post.get('created_time', ''),
+                            'post_id': post.get('id', ''),
+                            'comments': total_comments,
+                            'shares': total_shares,
+                        }
+
+                        print(post_data["message"])
+                        posts_matrix.append(post_data)
+
+                        # 11. Actualizar estadísticas por tipo
+                        post_type_data[post_type]['posts'] += 1
+                        post_type_data[post_type]['reach'] += reach
+                        post_type_data[post_type]['reactions'] += total_reactions
+                        post_type_data[post_type]['comments'] += total_comments
+                        post_type_data[post_type]['shares'] += total_shares
+                    except Exception as post_error:
+                        raise ValidationError(Exception)
+
+                # 12. Preparar siguiente página
+                post_url = post_result.get('paging', {}).get('next')
+                post_params = {}  # Los parámetros ya vienen en la URL 'next'
+                page_count += 1
+
             except requests.exceptions.RequestException as e:
-                raise ValidationError(f"Error fetching post data: {e}")
-
-
-            posts = post_result.get('data', [])
-
-            for post in posts:
-                attachments = post.get('attachments', {}).get('data', [{}])[0]
-                post_type = attachments.get('type', 'post').lower()
-                insights = post.get('insights', {}).get('data', [])
-                comments = post.get('comments', {}).get('data', [])
-
-                insights_dict = {item['name']: item['values'][0]['value'] for item in insights}
-                comments_dict = {item['name']: item['values'][0]['value'] for item in comments}
-
-                reach = insights_dict.get('post_impressions', 0)
-                organic_reach = insights_dict.get('post_impressions_organic', 0)
-                paid_reach = insights_dict.get('post_impressions_paid', 0)
-
-                shares_data = post.get('shares', {})
-                total_shares = shares_data.get('count', 0) if isinstance(shares_data, dict) else 0
-
-                comments_data = post.get('comments', {}).get('summary', {})
-                total_comments = comments_data.get('total_count', 0)
-
-                reactions_by_type = insights_dict.get('post_reactions_by_type_total', {})
-                total_reactions = sum(reactions_by_type.values()) if isinstance(reactions_by_type, dict) else 0
-
-                picture_url = post.get('full_picture', '')
-                created_time = post.get('created_time', '')
-                post_id = post.get('id', '')
-                message = post.get('message', '')
-
-                posts_matrix.append({
-                    'type': post_type,
-                    'reach': reach,
-                    'organic_reach': organic_reach,
-                    'paid_reach': paid_reach,
-                    'reactions': total_reactions,
-                    'reactions_by_type': reactions_by_type,
-                    'picture_url': picture_url,
-                    'message': message[:50],
-                    'created_time': created_time,
-                    'post_id': post_id,
-                    'comments': total_comments,
-                    'shares': total_shares,
-                })
-
-                post_type_data[post_type]['posts'] += 1
-                post_type_data[post_type]['reach'] += reach
-                post_type_data[post_type]['reactions'] += total_reactions
-                post_type_data[post_type]['comments'] += total_comments
-                post_type_data[post_type]['shares'] += total_shares
-
-            post_url = post_result.get('paging', {}).get('next', '')
-            post_params = {}
+                raise ValidationError(f"Error de conexión: {str(e)}")
+            except Exception as e:
+                raise ValidationError(f"Error inesperado: {str(e)}")
 
         # Sección de resultados listos para usar (por ejemplo, en vistas o PDF)
         resumen_por_tipo = {ptype: {
@@ -466,9 +493,7 @@ class project_project(models.Model):
             'comments': data['comments'],
             'shares': data['shares'],
         } for ptype, data in post_type_data.items()}
-
         top_5_posts = sorted(posts_matrix, key=lambda x: x['reach'], reverse=True)[:3]
-
         return {
             'totals': totals,
             'post_type_summary': resumen_por_tipo,
@@ -630,7 +655,6 @@ class project_project(models.Model):
             }
             ads_response = requests.get(ads_url, params=ads_params).json()
             ads_data = ads_response.get('data', [])
-            print(ads_data)
             if not ads_data:
                 return None
 
@@ -647,8 +671,6 @@ class project_project(models.Model):
 
             creative_response = requests.get(creative_url, params=creative_params).json()
             ad_image_url = creative_response.get('thumbnail_url', {})
-            print(ad_image_url)
-            print(creative_response)
             return ad_image_url
 
         if not self.partner_page_access_token:
