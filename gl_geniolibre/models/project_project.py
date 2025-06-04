@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-:
 import datetime, time, pytz, requests
-from unittest import result
 
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
