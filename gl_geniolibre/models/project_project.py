@@ -159,6 +159,8 @@ class project_project(models.Model):
         return super(project_project, self).write(vals)
 
     def fetch_facebook_campaigns(self):  # Optimizado
+        # 1. Eliminar TODAS las campañas existentes para esta cuenta
+        self.env['facebook.ad.campaigns'].search([]).unlink()
         # Validar token de acceso
         access_token = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_key')
         if not access_token:
