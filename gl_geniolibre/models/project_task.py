@@ -9,6 +9,10 @@ from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
 
+API_VERSION = "v23.0"
+LinkedIn_Version = "202505"
+
+
 class red_social(models.Model):
     _name = 'red.social'
     _description = 'Redes Sociales'
@@ -16,21 +20,27 @@ class red_social(models.Model):
 
     @api.model
     def _auto_init(self):
-        """Create default social networks if table is empty"""
+        """Crear redes sociales por defecto si faltan"""
         res = super()._auto_init()
-        if not self.search_count([]):
-            self.create([
-                {
-                    'name': 'Facebook'
-                },  # {'name': 'Twitter'},
-                {
-                    'name': 'Instagram'
-                },  # {'name': 'LinkedIn'},
-                # {'name': 'YouTube'},
-                {
-                    'name': 'TikTok'
-                },
-            ])
+
+        redes_por_defecto = [
+            'Facebook',
+            'Instagram',
+            'LinkedIn',
+            'TikTok',
+        ]
+
+        # Buscar nombres ya existentes (case insensitive por si acaso)
+        existentes = self.search([]).mapped('name')
+        existentes = [nombre.strip().lower() for nombre in existentes]
+
+        redes_a_crear = [{
+            'name': nombre
+        } for nombre in redes_por_defecto if nombre.lower() not in existentes]
+
+        if redes_a_crear:
+            self.create(redes_a_crear)
+
         return res
 
 
@@ -57,6 +67,8 @@ class project_task(models.Model):
     partner_facebook_page_id = fields.Char(related="partner_id.facebook_page_id")
     partner_instagram_page_id = fields.Char(related="partner_id.instagram_page_id")
     partner_tiktok_access_token = fields.Char(related="partner_id.tiktok_access_token")
+    partner_linkedin_page_id = fields.Char(related="partner_id.id_linkedin_organization")
+
     post_estado = fields.Char(string="Estado de la Publicación", default="Pendiente")
     fb_post_id = fields.Char(string="Facebook Post ID")
     fb_post_url = fields.Char(string="Facebook URL")
@@ -75,11 +87,9 @@ class project_task(models.Model):
         # Usar la sintaxis de super() preferida en Python 3
         return super().copy(default)
 
-    def write(self, vals):#optimizado
+    def write(self, vals):  # optimizado
 
         for record in self:
-
-
             current_tipo = vals.get('tipo', record.tipo)
 
             # Validación condicional para fecha_publicacion
@@ -136,7 +146,6 @@ class project_task(models.Model):
                     for attachment in current_attachments:
                         if attachment.mimetype == "video/mp4":
                             raise ValidationError("Solo se aceptan imágenes para publicaciones de tipo 'Feed'. No se permiten videos MP4.")
-
         return super().write(vals)
 
     def programar_post(self):
@@ -152,12 +161,12 @@ class project_task(models.Model):
         self.ensure_one()  # Asegura que solo hay un registro seleccionado
         self.post_estado = "Pendiente"
 
-    def revisar_post(self, from_cron=False):#Optimizado
+    def revisar_post(self, from_cron=False):  # Optimizado
         error_message = []
         try:
             if self.post_estado == "Procesando":
                 # 2. Verificar el estado de procesamiento
-                base_url = 'https://graph.facebook.com/v22.0'
+                base_url = f'https://graph.facebook.com/{API_VERSION}'
                 status_url = f"{base_url}/{self.inst_post_id}"
                 status_params = {
                     "access_token": self.partner_page_access_token,
@@ -195,7 +204,7 @@ class project_task(models.Model):
 
             # Generar Permalink de Instagram
             if self.inst_post_id and self.post_estado == "Publicado" and not self.inst_post_url:
-                url = f"https://graph.facebook.com/v22.0/{self.inst_post_id}"
+                url = f"https://graph.facebook.com/{API_VERSION}/{self.inst_post_id}"
                 params = {
                     'fields': 'media_type,permalink,username',
                     'access_token': self.partner_page_access_token
@@ -299,7 +308,7 @@ class project_task(models.Model):
             }
 
     def publicar_post(self):
-        BASE_URL = 'https://graph.facebook.com/v22.0'
+        BASE_URL = f'https://graph.facebook.com/{API_VERSION}'
 
         def remove_duplicate_links(text):
             seen_urls = set()
@@ -393,12 +402,12 @@ class project_task(models.Model):
                 response = requests.post(url, params=params)
                 response_data = response.json()
                 if 'success' in response_data:
-                    if  self.imagen_portada and  self.tipo == "video_reels":
+                    if self.imagen_portada and self.tipo == "video_reels":
                         image_data = base64.b64decode(self.imagen_portada)
                         image_file = BytesIO(image_data)
                         image_file.name = 'miniatura.jpg'  # necesario para el multipart/form-data
 
-                        url = f"https://graph.facebook.com/v19.0/{video_id}/thumbnails"
+                        url = f"https://graph.facebook.com/{API_VERSION}/{video_id}/thumbnails"
                         files = {
                             'source': ('miniatura.jpg', image_file, 'image/jpeg')
                         }
@@ -436,7 +445,7 @@ class project_task(models.Model):
                             'published': True,  # Important for scheduling,
                             'media_type': 'STORIES'
                         }
-                    else: #Publicación de Reels
+                    else:  # Publicación de Reels
                         cover_url = upload_files_to_s3([("portada.jpg", self.imagen_portada)], aws_api, aws_secret)[0]
                         container_params = {
                             'access_token': self.partner_page_access_token,
@@ -521,6 +530,72 @@ class project_task(models.Model):
             # You can then check the response
             return response_data["data"]["publish_id"]
 
+        def publish_on_linkedin(media_urls):
+            linkedin_access_token = self.env['ir.config_parameter'].sudo().get_param('linkedin.access_token')
+            ORG_URN = "urn:li:organization:" + self.partner_linkedin_page_id  # Replace with your organization URN
+            # Headers for all requests
+            headers = {
+                "Authorization": f"Bearer {linkedin_access_token}",
+                "LinkedIn-Version": LinkedIn_Version,
+                "X-RestLi-Protocol-Version": "2.0.0",
+                "Content-Type": "application/json"
+            }
+
+            # 1. Initialize image upload
+            init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
+            init_data = {
+                "initializeUploadRequest": {
+                    "owner": ORG_URN
+                }
+            }
+
+            try:
+                # Initialize upload
+                init_response = requests.post(init_url, headers=headers, json=init_data)
+                init_response.raise_for_status()
+
+                # Extract values from response
+                upload_url = init_response.json()["value"]["uploadUrl"]
+                image_urn = init_response.json()["value"]["image"]
+
+                # 2. Upload the image
+                image_data = requests.get(media_urls[0]).content
+                upload_headers = {
+                    "Authorization": f"Bearer {linkedin_access_token}",
+                    "Content-Type": "image/jpeg"
+                }
+
+                upload_response = requests.put(upload_url, headers=upload_headers, data=image_data)
+                upload_response.raise_for_status()
+
+                # 3. Create post with the image
+                post_url = "https://api.linkedin.com/rest/posts"
+                post_data = {
+                    "author": ORG_URN,
+                    "commentary": "Texto de tu publicación con imagen en LinkedIn!",
+                    "visibility": "PUBLIC",
+                    "distribution": {
+                        "feedDistribution": "MAIN_FEED",
+                        "targetEntities": [],
+                        "thirdPartyDistributionChannels": []
+                    },
+                    "content": {
+                        "media": {
+                            "title": "Título de la imagen",
+                            "id": image_urn
+                        }
+                    },
+                    "lifecycleState": "PUBLISHED",
+                    "isReshareDisabledByAuthor": False
+                }
+
+                post_response = requests.post(post_url, headers=headers, json=post_data)
+                post_response.raise_for_status()
+            except requests.exceptions.HTTPError as err:
+                print(f"Response content: {err.response.text}")
+            except Exception as e:
+                print(f"An error occurred: {str(e)}")
+
         # Validaciones iniciales (detienen todo el proceso si fallan)
         if self.fecha_publicacion > fields.Datetime.now():
             return
@@ -536,9 +611,7 @@ class project_task(models.Model):
 
         try:
             # Configuración inicial
-            self.write({
-                'post_estado': 'Error'
-            })
+            self.write({ 'post_estado': 'Error' })
             parametros = self.env['ir.config_parameter'].sudo()
             aws_api = parametros.get_param('gl_aws.api_key')
             aws_secret = parametros.get_param('gl_aws.secret')
@@ -557,8 +630,10 @@ class project_task(models.Model):
                 credential_errors.append("Facebook")
             if 'Instagram' in self.red_social_ids.mapped('name') and not self.partner_instagram_page_id:
                 credential_errors.append("Instagram")
-            if 'TikTok' in self.red_social_ids.mapped('name') and not self.partner_instagram_page_id:
+            if 'TikTok' in self.red_social_ids.mapped('name') and not self.partner_tiktok_access_token:
                 credential_errors.append("TikTok")
+            if 'LinkedIn' in self.red_social_ids.mapped('name') and not self.partner_linkedin_page_id:
+                credential_errors.append("LinkedIn")
 
             if credential_errors:
                 raise ValidationError(f"Los datos de acceso no fueron configurados para: {', '.join(credential_errors)}")
@@ -571,8 +646,10 @@ class project_task(models.Model):
             errors = []
             success_messages = []
             published_on = []
-            # Facebook
 
+            procesando = False
+
+            # Facebook
             if 'Facebook' in self.red_social_ids.mapped('name'):
                 try:
                     if self.tipo == "feed":
@@ -592,16 +669,16 @@ class project_task(models.Model):
                                 'fb_post_url': f'https://www.facebook.com/{fb_response}',
                             })
                         else:
-                            self.fb_post_url = 'Las historias no tienen acceso directo'
+
+                            self.fb_post_url = f"https://www.facebook.com/{self.partner_facebook_page_id}"
 
                         success_messages.append("Facebook: Publicación exitosa")
                         published_on.append("Facebook")
-                        print("Facebook OK")
                     else:
                         errors.append("Facebook: No se recibió respuesta del servidor")
                 except Exception as e:
                     errors.append(f"Facebook: {str(e)}")
-            procesando=False
+
             # Instagram
             if 'Instagram' in self.red_social_ids.mapped('name'):
 
@@ -610,9 +687,6 @@ class project_task(models.Model):
 
                     if isinstance(instagram_result, tuple):  # Cuando es video (procesando=True)
                         container_id, procesando = instagram_result
-                        print(instagram_result)
-                        print(procesando)
-                        print(container_id)
                         self.write({
                             'inst_post_id': container_id,
                         })
@@ -638,11 +712,26 @@ class project_task(models.Model):
                         })
                         success_messages.append("TikTok: Publicación exitosa")
                         published_on.append("TikTok")
-                        print("TikTok OK")
                     else:
                         errors.append("TikTok: No se recibió respuesta del servidor")
                 except Exception as e:
                     errors.append(f"TikTok: {str(e)}")
+
+            # LinkedIn
+            if 'LinkedIn' in self.red_social_ids.mapped('name'):
+                try:
+                    linkedin_response = publish_on_linkedin(media_urls)
+                    if linkedin_response:
+                        self.write({
+                            'linkedin_post_id': linkedin_response,
+                            'linkedin_post_url': f'https://www.linkedin.com/feed/update/{linkedin_response}'
+                        })
+                        success_messages.append("LinkedIn: Publicación exitosa")
+                        published_on.append("LinkedIn")
+                    else:
+                        errors.append("LinkedIn: No se recibió respuesta del servidor")
+                except Exception as e:
+                    errors.append(f"LinkedIn: {str(e)}")
 
             # Resultado final
             if published_on:
@@ -682,6 +771,7 @@ class project_task(models.Model):
         except Exception as e:
             raise ValidationError(f"Error en el proceso de publicación: {str(e)}")
 
+
 def upload_files_to_s3(files, aws_api, aws_secret):
     aws_access_key_id = aws_api
     aws_secret_access_key = aws_secret
@@ -691,23 +781,34 @@ def upload_files_to_s3(files, aws_api, aws_secret):
     if not aws_access_key_id or not aws_secret_access_key:
         raise ValidationError("No se configuró correctamente el servicio de AWS.")
 
-    s3_client = boto3.client(
-        's3',
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        region_name=region_name
-    )
+    s3_client = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=region_name)
 
     if not files:
         raise ValidationError("No se encontraron archivos adjuntos o imágenes.")
 
     # Normalizar archivos: convertir a lista si es recordset o cualquier otra cosa iterable
+    if hasattr(files, 'ids'):  # Odoo recordset
+        files = list(files)
+    elif isinstance(files, (tuple, list)):
+        # Asegurar que sea lista, no una tupla inmutable
+        files = list(files)
+    else:
+        files = [
+            files
+        ]
+
     if hasattr(files, 'ids'):
         files = list(files)
     elif not isinstance(files, list):
-        files = [files]
+        files = [
+            files
+        ]
 
-    allowed_extensions = {'jpg', 'jpeg', 'mp4'}
+    allowed_extensions = {
+        'jpg',
+        'jpeg',
+        'mp4'
+    }
     uploaded_urls = []
 
     # Identificadores comunes
@@ -734,11 +835,7 @@ def upload_files_to_s3(files, aws_api, aws_secret):
         file_name = f"media_{timestamp}_{random_digits}-{idx}.{file_ext}"
 
         try:
-            s3_client.put_object(
-                Bucket=bucket_name,
-                Key=file_name,
-                Body=base64.b64decode(file_data),
-            )
+            s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=base64.b64decode(file_data), )
         except Exception as e:
             raise ValidationError(f"Error al subir archivo {file_name_raw} a S3: {str(e)}")
 
@@ -746,5 +843,3 @@ def upload_files_to_s3(files, aws_api, aws_secret):
         uploaded_urls.append(file_url)
 
     return uploaded_urls
-
-

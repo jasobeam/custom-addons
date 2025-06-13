@@ -10,28 +10,14 @@ from google.ads.googleads.client import GoogleAdsClient
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
+LinkedIn_Version = "202505"
+
 class GoogleAdsAccount(models.Model):
     _name = 'google.ads.account'
     _description = 'Cuenta de Google Ads'
 
     name = fields.Char("Nombre")
     account_id = fields.Char("ID de Cuenta", required=True)
-
-
-class GoogleSearchConsoleSite(models.Model):
-    _name = 'google.search.console.site'
-    _description = 'Sitio de Google Search Console'
-
-    name = fields.Char("Nombre del sitio")
-    site_url = fields.Char("URL del Sitio", required=True)
-
-
-class GoogleAnalyticsProperty(models.Model):
-    _name = 'google.analytics.property'
-    _description = 'Propiedad de Google Analytics GA4'
-
-    name = fields.Char("Nombre de la propiedad")
-    property_id = fields.Char("ID de Propiedad", required=True)
 
 class FacebookAdAccount(models.Model):
     _name = 'facebook.ad.account'
@@ -40,25 +26,19 @@ class FacebookAdAccount(models.Model):
     name = fields.Char('Name')
     account_id = fields.Char('Account ID')
 
+class LinkedInOrganization(models.Model):
+    _name = 'linkedin.organization'
+    _description = 'LinkedIn Organization'
+
+    name = fields.Char('Nombre de la Organización')
+    account_id = fields.Char('ID de la Organización')  # Solo el ID numérico (ej: "105978413")
+    full_urn = fields.Char('URN Completo')  # Campo técnico: "urn:li:organization:105978413"
 
 class Partner(models.Model):
     _inherit = "res.partner"
     credenciales = fields.One2many('gl.credentials', 'credenciales_id')
-
-    facebook_page_id = fields.Char(string="Facebook Page id", tracking=True)
-    facebook_page_access_token = fields.Char(readonly=True)
-    instagram_page_id = fields.Char(readonly=True)
-
-    tiktok_auth_code = fields.Char(string="TikTok Auth Code", tracking=True)
-    tiktok_access_token = fields.Char(string="TikTok Page id", tracking=True, readonly=True)
-    tiktok_refresh_token = fields.Char(readonly=True)
-    tiktok_expires_in = fields.Integer(readonly=True)
-    tiktok_refresh_expires_in = fields.Integer(readonly=True)
-    tiktok_issued_at = fields.Integer(readonly=True)
-
     code_verifier = fields.Char(readonly=True)
     code_challenge = fields.Char(readonly=True)
-
     plan_descripcion = fields.Char(string="Plan", tracking=True)
     plan_post = fields.Integer(string="Número de Posts", tracking=True)
     plan_historia = fields.Integer(string="Número de Historias", tracking=True)
@@ -67,28 +47,29 @@ class Partner(models.Model):
     publicidad = fields.Float(string="Presupuesto Publicidad", tracking=True)
     moneda = fields.Many2one('res.currency', tracking=True)
 
-    id_facebook_ad_account = fields.Char(string="ID Cuenta Publicitaria",
-                                         related='facebook_ad_account.account_id',
-                                         readonly=True,  # opcional, si no quieres que el usuario lo modifique
-                                         store=True, )
-    facebook_ad_account = fields.Many2one(
-        'facebook.ad.account',
-        string='Cuenta publicitaria de Facebook'
-    )
+    # Facebook
+    id_facebook_ad_account = fields.Char(string="ID Cuenta Publicitaria", related='facebook_ad_account.account_id', readonly=True,  store=True, )
+    facebook_ad_account = fields.Many2one( 'facebook.ad.account', string='Cuenta publicitaria de Facebook' )
+    facebook_page_id = fields.Char(string="Facebook Page id", tracking=True)
+    facebook_page_access_token = fields.Char(readonly=True)
+    instagram_page_id = fields.Char(readonly=True)
+
+    # TikTok
+    tiktok_auth_code = fields.Char(string="TikTok Auth Code", tracking=True)
+    tiktok_access_token = fields.Char(string="TikTok Page id", tracking=True, readonly=True)
+    tiktok_refresh_token = fields.Char(readonly=True)
+    tiktok_expires_in = fields.Integer(readonly=True)
+    tiktok_refresh_expires_in = fields.Integer(readonly=True)
+    tiktok_issued_at = fields.Integer(readonly=True)
+
     # Google Ads
     google_ads_account = fields.Many2one('google.ads.account', string='Cuenta de Google Ads')
     id_google_ads_account = fields.Char(string="ID Cuenta Google Ads", related='google_ads_account.account_id',
                                         readonly=True, store=True)
 
-    # Search Console
-    gsc_site = fields.Many2one('google.search.console.site', string='Sitio Search Console')
-    gsc_site_url = fields.Char(string="URL Search Console", related='gsc_site.site_url', readonly=True, store=True)
-
-    # GA4
-    ga4_property = fields.Many2one('google.analytics.property', string='Propiedad GA4')
-    ga4_property_id = fields.Char(string="ID Propiedad GA4", related='ga4_property.property_id', readonly=True,
-                                  store=True)
-
+    #LinkeIn
+    linkedin_organization = fields.Many2one('linkedin.organization', string='Organización de LinkedIn')
+    id_linkedin_organization = fields.Char(string="ID Organización LinkedIn", related='linkedin_organization.account_id', readonly=True, store=True)
 
     def facebook_obtener_datos(self):
 
@@ -280,8 +261,6 @@ class Partner(models.Model):
 
     def google_obtener_datos(self):
         self.env['google.ads.account'].search([]).unlink()
-        self.env['google.search.console.site'].search([]).unlink()
-        self.env['google.analytics.property'].search([]).unlink()
         client = self._get_google_ads_client()
         ga_service = client.get_service("GoogleAdsService")
 
@@ -302,85 +281,141 @@ class Partner(models.Model):
         account_model = self.env["google.ads.account"].sudo()
         for row in response:
             customer = row.customer_client
-            print("==== Cuenta ====")
-            print("ID:", customer.client_customer.split("/")[-1])
-            print("Nombre:", customer.descriptive_name)
-            print("Nivel:", customer.level)
-            print("Estado:", customer.status)
-
             customer_id = customer.client_customer.split("/")[-1]
             name = customer.descriptive_name
-            level = customer.level
-            status = customer.status
-            print("####################")
             if not account_model.search([("account_id", "=", customer_id)]):
                 account_model.create({
                     "name": name or f"Cuenta {customer_id}",
                     "account_id": customer_id,
                 })
 
-        # for partner in self:
-        #     # Borrar registros antiguos
-        #     self.env['google.ads.account'].search([]).unlink()
-        #     self.env['google.search.console.site'].search([]).unlink()
-        #     self.env['google.analytics.property'].search([]).unlink()
-        #
-        #     # ---------------------
-        #     # Google Ads API
-        #     # ---------------------
-        #     # 1. Obtener credenciales
-        #     access_token = self.env['ir.config_parameter'].sudo().get_param('gl_google.access_token')
-        #     developer_token = "NgJ6-q9NbZ8UZrfJPA9waQ"
-        #
-        #
-        #     if not access_token or not developer_token:
-        #         raise ValidationError("Faltan credenciales (access_token o developer_token)")
-        #
-        #     # 2. Configurar solicitud
-        #     headers = {
-        #         "Authorization": f"Bearer {access_token}",
-        #         "developer-token": developer_token,
-        #         "Content-Type": "application/json"
-        #     }
-        #
-        #     # 3. URL CORRECTA (con guión bajo)
-        #     url = "https://googleads.googleapis.com/v14/customers:listAccessibleCustomers"
-        #
-        #     response = requests.get(url, headers=headers)
-        #     response.raise_for_status()  # Verificar errores HTTP
-        #
-        #     data = response.json()
-        #
-        #     # 4. Procesar respuesta
-        #     return [{
-        #         "resource_name": resource,
-        #         "customer_id": resource.split("/")[-1]
-        #     } for resource in data.get("resourceNames", [])]
-        #
-        #     # ---------------------
-        #     # Google Analytics API (GA4)
-        #     # ---------------------
-        #     url_ga4 = "https://analyticsadmin.googleapis.com/v1beta/accounts"
-        #     res_accounts = requests.get(url_ga4, headers=headers)
-        #     if res_accounts.status_code != 200:
-        #         raise ValidationError(f"Error al obtener cuentas de GA4:\n{res_accounts.text}")
-        #     accounts = res_accounts.json().get('accounts', [])
-        #
-        #     for acc in accounts:
-        #         account_id = acc['name'].split('/')[-1]
-        #         url_props = f"https://analyticsadmin.googleapis.com/v1beta/accounts/{account_id}/properties"
-        #         res_props = requests.get(url_props, headers=headers)
-        #         if res_props.status_code != 200:
-        #             raise ValidationError(
-        #                 f"Error al obtener propiedades de GA4 para la cuenta {account_id}:\n{res_props.text}")
-        #         props = res_props.json().get('properties', [])
-        #
-        #         for prop in props:
-        #             prop_id = prop.get('name', '').split('/')[-1]
-        #             self.env['google.analytics.property'].create({
-        #                 'name': prop.get('displayName', prop_id),
-        #                 'property_id': prop_id,
-        #             })
+    def update_linkedin_organizations(self):
+        """Actualiza las organizaciones de LinkedIn desde la API"""
+        LinkedInOrg = self.env['linkedin.organization']
+        access_token = self.env['ir.config_parameter'].sudo().get_param('linkedin.access_token')
+
+        def _get_linkedin_org_name(org_id, headers):
+            """Obtiene el nombre de la organización con manejo robusto de respuestas"""
+            url = f"https://api.linkedin.com/rest/organizations/{org_id}"
+            try:
+                response = requests.get(url, headers=headers, timeout=10)
+                print(response.json())
+                response.raise_for_status()  # Lanza excepción para códigos 4XX/5XX
+
+                data = response.json()
+                # Extraer nombre de la estructura estándar
+                localized_name = data.get('localizedName')
+                vanity_name = data.get('vanityName')
+
+                if localized_name:
+                    return localized_name
+                if vanity_name:
+                    return vanity_name
+                if data.get('name'):
+                    return data['name']
+                if data.get('website'):
+                    from urllib.parse import urlparse
+                    domain = urlparse(data['website']).netloc
+                    if domain:
+                        return domain.split('.')[0].capitalize()
+
+                # Opción 4: ID como último recurso
+                return f"Organización {org_id}"
+
+            except requests.exceptions.RequestException as e:
+                return f"Organización {org_id}"
+
+        ######################### Validaciones #################################
+
+        if not access_token:
+            raise ValidationError("Token de acceso de LinkedIn no configurado. Por favor configure el parámetro 'linkedin_access_token' en Ajustes Técnicos.")
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "X-Restli-Protocol-Version": "2.0.0",
+            "Content-Type": "application/json",
+            "LinkedIn-Version":LinkedIn_Version
+        }
+
+        ######################### Lógica Principal #################################
+
+        # 1. Obtener organizaciones donde el usuario es ADMINISTRADOR
+        base_url = "https://api.linkedin.com/rest/organizationAcls"
+        params = {
+            "q": "roleAssignee",
+            "role": "ADMINISTRATOR",
+            "state": "APPROVED",
+            "start": 0,
+            "count": 100
+        }
+
+        try:
+            # Primera solicitud para obtener datos iniciales
+            response = requests.get(base_url, headers=headers, params=params, timeout=15)
+            # Manejo específico del error 426
+            if response.status_code == 426:
+                raise ValidationError("""
+                    Verifique que estos encabezados estén presentes en la solicitud.
+                """)
+
+            response.raise_for_status()
+            orgs_data = response.json()
+
+            # Manejo de paginación (si existe)
+            elements = orgs_data.get('elements', [])
+            while orgs_data.get('paging', {}).get('links', []):
+                next_url = next((link['href'] for link in orgs_data['paging']['links'] if link['rel'] == 'next'), None)
+                if not next_url:
+                    break
+
+                response = requests.get(next_url, headers=headers, timeout=15)
+                response.raise_for_status()
+                orgs_data = response.json()
+                elements.extend(orgs_data.get('elements', []))
+
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Error en API de LinkedIn: {str(e)}"
+            raise ValidationError(error_msg)
+
+        # 2. Borrar registros existentes (solo si obtuvimos datos nuevos)
+        if elements:
+            LinkedInOrg.search([]).unlink()
+
+        # 3. Crear nuevos registros
+        created_count = 0
+        for org in elements:
+            org_urn = org.get('organization', '')
+            if not org_urn:
+                continue
+
+            org_id = org_urn.split(':')[-1]
+
+            # Obtener nombre de la organización
+            org_name = _get_linkedin_org_name(org_id, headers)
+            print(org_name)
+            # Crear registro con manejo de errores
+            try:
+                LinkedInOrg.create({
+                    'name': org_name,
+                    'account_id': org_id,
+                    'full_urn': org_urn,
+                })
+                created_count += 1
+            except Exception as e:
+                raise ValidationError(f"Error al crear organización {org_id}: {str(e)}")
+                continue
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Éxito' if created_count else 'Advertencia',
+                'message': f'Se actualizaron {created_count} organizaciones de LinkedIn' if created_count else 'No se encontraron organizaciones para actualizar',
+                'sticky': False,
+                'type': 'success' if created_count else 'warning',
+            }
+        }
+
 
 def generate_random_string(length):
     characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'

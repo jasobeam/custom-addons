@@ -64,10 +64,10 @@
                         <div class="col-12 p-0 me-3 mt-3">
                             <button string="Programar" icon="fa-calendar" type="object" name="programar_post"
                                     class="btn-primary mr4"
-                                    invisible="post_estado != 'Pendiente' or tipo =='otro'"/>
+                                    invisible="post_estado != 'Pendiente' or tipo =='otro' or state!= '03_approved'"/>
                             <button string="Publicar" icon="fa-check" type="object" name="publicar_post"
                                     class="btn-success mr4"
-                                    invisible="post_estado != 'Pendiente' or tipo =='otro'"
+                                    invisible="post_estado != 'Pendiente' or tipo =='otro' or state!= '03_approved'"
                                     confirm="¿Estas seguro de Publicar este Post?"/>
                             <button string="Cancelar" icon="fa-trash-o" type="object" name="cancelar_post"
                                     class="btn-danger mr4"
@@ -121,6 +121,7 @@
                            decoration-warning="post_estado == 'Programado'"
                            decoration-danger="post_estado == 'Error'"
                            decoration-success="post_estado == 'Publicado'"/>
+                    <field name="fecha_publicacion" string="Fecha de Publicación"/>
                 </xpath>
             </field>
         </record>

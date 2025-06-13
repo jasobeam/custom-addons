@@ -49,22 +49,22 @@
                     </block>
                     <block title="Google Authentication">
                         <div class="col-xs-12 row o_settings_container">
-                            <label class="col-lg-3" string="Google Ads Manager Account" for="google_client_id"/>
+                            <label class="col-lg-3" string="Ads Manager Account" for="google_client_id"/>
                             <field name="google_login_customer_id" title="Ads Manager Account"/>
 
-                            <label class="col-lg-3" string="Google Developer Token" for="google_client_id"/>
+                            <label class="col-lg-3" string="Developer Token" for="google_client_id"/>
                             <field name="google_developer_token" title="Developer Token"/>
 
-                            <label class="col-lg-3" string="Google Client ID" for="google_client_id"/>
+                            <label class="col-lg-3" string="Client ID" for="google_client_id"/>
                             <field name="google_client_id" title="Google Client ID"/>
 
-                            <label class="col-lg-3 mt-3" string="Google Client Secret" for="google_client_secret"/>
+                            <label class="col-lg-3 mt-3" string="Client Secret" for="google_client_secret"/>
                             <field name="google_client_secret" title="Google Client Secret"/>
 
-                            <label class="col-lg-3 mt-3" string="Google Redirect URI" for="google_redirect_uri"/>
+                            <label class="col-lg-3 mt-3" string="Redirect URI" for="google_redirect_uri"/>
                             <field name="google_redirect_uri" title="Redirect URI"/>
 
-                            <label class="col-lg-3 mt-3" string="Google Access Token" for="google_redirect_uri"/>
+                            <label class="col-lg-3 mt-3" string="Access Token" for="google_redirect_uri"/>
                             <field name="google_access_token" title="Access Token"/>
 
                             <label class="col-lg-3 mt-3" string="Google Refresh Token" for="google_redirect_uri"/>
@@ -76,6 +76,30 @@
                                             icon="fa-google"
                                             type="object"
                                             name="conectar_google"
+                                            class="btn-primary"/>
+                                </div>
+                            </div>
+                        </div>
+                    </block>
+                    <block title="LinkedIn Autentication">
+                        <div class="col-xs-12 row o_settings_container">
+                            <label class="col-lg-3" string="Cliend ID" for="linkedin_client_id"/>
+                            <field name="linkedin_client_id" title="Client ID"/>
+                            <label class="col-lg-3" string="Secret ID" for="linkedin_client_secret"/>
+                            <field name="linkedin_client_secret" title="Secret ID"/>
+                            <label class="col-lg-3" string="Redirect URI" for="linkedin_redirect_uri"/>
+                            <field name="linkedin_redirect_uri" title="Redirect URI"/>
+
+                            <label class="col-lg-3" string="Access Token" for="linkedin_access_token"/>
+                            <field name="linkedin_access_token" title="Access Token"/>
+                            <label class="col-lg-3" string="Token Expiry" for="linkedin_token_expiry"/>
+                            <field name="linkedin_token_expiry" title="Token Expiry"/>
+                            <div class="content-group mt-3">
+                                <div class="mt8">
+                                    <button string="Conectar con Linkedin"
+                                            icon="fa-linkedin"
+                                            type="object"
+                                            name="conectar_linkedin"
                                             class="btn-primary"/>
                                 </div>
                             </div>

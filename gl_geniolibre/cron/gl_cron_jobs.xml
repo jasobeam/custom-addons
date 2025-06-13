@@ -5,7 +5,9 @@
         <field name="model_id" ref="model_project_task"/>
         <field name="state">code</field>
         <field name="code">
-            for record in model.search([('post_estado', '=', 'Programado')]):
+            for record in model.search([
+                ('post_estado', '=', 'Programado')
+            ]):
                 try:
                     record.publicar_post()
                 except Exception as e:
@@ -17,7 +19,7 @@
                     })
                     record.message_post(body=error_message, message_type='comment')
         </field>
-        <field name="interval_number">15</field>
+        <field name="interval_number">10</field>
         <field name="interval_type">minutes</field> <!-- changed from 'hours' -->
         <field name="active">True</field>
         <field name="priority">0</field>

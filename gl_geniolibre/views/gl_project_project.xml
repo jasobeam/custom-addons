@@ -47,7 +47,7 @@
                             icon="fa-refresh"
                             class="oe_inline"
                             string=""
-                            title="Actualizar campañas"
+                            title="Actualizar campañas de facebook"
                             invisible="project_type != 'marketing'"/>
                     <field name="google_ad_campaigns_ids" widget="many2many_tags"
                            invisible="project_type != 'marketing'"/>

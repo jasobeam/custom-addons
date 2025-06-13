@@ -5,6 +5,5 @@ access_gl_social_reports,access.gl.social.reports,model_gl_social_reports,base.g
 access_facebook_ad_account,access.facebook.ad.account,model_facebook_ad_account,base.group_user,1,1,1,1
 access_facebook_ad_campaigns,access.facebook.ad.campaigns,model_facebook_ad_campaigns,base.group_user,1,1,1,1
 access_google_ads_account,access.google.ads.account,model_google_ads_account,base.group_user,1,1,1,1
-access_google_search_console_site,access.google.search.console.site,model_google_search_console_site,base.group_user,1,1,1,1
-access_google_analytics_property,access.google.analytics.property,model_google_analytics_property,base.group_user,1,1,1,1
 access_google_ad_campaigns,access.google.ad.campaigns,model_google_ad_campaigns,base.group_user,1,1,1,1
+access_linkedin_organizations,access.linkedin.organizations,model_linkedin_organization,base.group_user,1,1,1,1
