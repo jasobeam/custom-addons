@@ -309,7 +309,7 @@ class project_task(models.Model):
 
     def publicar_post(self):
         BASE_URL = f'https://graph.facebook.com/{API_VERSION}'
-
+        _logger.info("Operación Iniciada")
         def remove_duplicate_links(text):
             seen_urls = set()
 
@@ -597,8 +597,6 @@ class project_task(models.Model):
                 print(f"An error occurred: {str(e)}")
 
         # Validaciones iniciales (detienen todo el proceso si fallan)
-        if self.fecha_publicacion > fields.Datetime.now():
-            return
 
         if not self.fecha_publicacion:
             raise ValidationError("Debe seleccionar una fecha de publicación")
@@ -609,9 +607,9 @@ class project_task(models.Model):
         if not self.red_social_ids:
             raise ValidationError("Debe seleccionar al menos una red social")
 
+        _logger.info("Redes Sociales", "OK")
         try:
             # Configuración inicial
-            self.write({ 'post_estado': 'Error' })
             parametros = self.env['ir.config_parameter'].sudo()
             aws_api = parametros.get_param('gl_aws.api_key')
             aws_secret = parametros.get_param('gl_aws.secret')
@@ -624,6 +622,7 @@ class project_task(models.Model):
             formatted_description = remove_duplicate_links(formatted_description).rstrip()
             combined_text = f"{formatted_description}\n\n{plain_hashtags}"
 
+            _logger.info("Configuración inicial", "OK")
             # Validación de credenciales por red social
             credential_errors = []
             if 'Facebook' in self.red_social_ids.mapped('name') and not self.partner_facebook_page_id:
@@ -641,7 +640,7 @@ class project_task(models.Model):
             # Subir archivos a S3 (única operación que debe fallar completamente si hay error)
             media_urls = upload_files_to_s3(self.adjuntos_ids, aws_api, aws_secret)
             media_ids = []
-
+            _logger.info(f"Archivos subidos a S3. URLs obtenidas: {media_urls}")
             # Publicación en redes sociales con gestión de errores individual
             errors = []
             success_messages = []
@@ -674,6 +673,7 @@ class project_task(models.Model):
 
                         success_messages.append("Facebook: Publicación exitosa")
                         published_on.append("Facebook")
+                        _logger.info("Facebook", "OK")
                     else:
                         errors.append("Facebook: No se recibió respuesta del servidor")
                 except Exception as e:
@@ -698,7 +698,7 @@ class project_task(models.Model):
                         })
                         success_messages.append("Instagram: Publicación exitosa")
                         published_on.append("Instagram")
-
+                        _logger.info("Instagram", "OK")
                 except Exception as e:
                     errors.append(f"Instagram: {str(e)}")
 
@@ -712,6 +712,7 @@ class project_task(models.Model):
                         })
                         success_messages.append("TikTok: Publicación exitosa")
                         published_on.append("TikTok")
+                        _logger.info("TikTok", "OK")
                     else:
                         errors.append("TikTok: No se recibió respuesta del servidor")
                 except Exception as e:
@@ -728,6 +729,7 @@ class project_task(models.Model):
                         })
                         success_messages.append("LinkedIn: Publicación exitosa")
                         published_on.append("LinkedIn")
+                        _logger.info("LinkedIn", "OK")
                     else:
                         errors.append("LinkedIn: No se recibió respuesta del servidor")
                 except Exception as e:

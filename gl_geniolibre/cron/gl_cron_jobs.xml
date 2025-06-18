@@ -5,24 +5,59 @@
         <field name="model_id" ref="model_project_task"/>
         <field name="state">code</field>
         <field name="code">
-            for record in model.search([
-                ('post_estado', '=', 'Programado')
-            ]):
-                try:
-                    record.publicar_post()
-                except Exception as e:
-                    error_message = f"Error al publicar el post: {str(e)}"
-                    _logger.error(f"Error al publicar el post {record.id}: {e}")
-                    record.write({
-                        'post_estado': 'Error',
-                        'state': '01_in_progress'
-                    })
-                    record.message_post(body=error_message, message_type='comment')
+<![CDATA[
+# Get all scheduled posts
+records_to_process = model.search([('post_estado', '=', 'Programado')])
+record_count = len(records_to_process)
+
+if record_count > 0:
+    _logger.info("╔══════════════════════════════════════╗")
+    _logger.info(f"║ INICIANDO PUBLICACIÓN DE POSTS      ║")
+    _logger.info(f"║ Posts programados encontrados: {record_count} ║")
+    _logger.info("╚══════════════════════════════════════╝")
+
+success_count = 0
+error_count = 0
+
+for record in records_to_process:
+    try:
+        _logger.info(f"► Procesando Post ID {record.id}: {record.name or 'Sin nombre'}")
+        record.publicar_post()
+        success_count += 1
+        _logger.info(f"✔ Post ID {record.id} publicado exitosamente")
+
+    except Exception as e:
+        error_count += 1
+        error_message = f"Error al publicar el post: {str(e)}"
+        _logger.error(f"✖ ERROR en Post ID {record.id}: {e}")
+        _logger.error(traceback.format_exc())  # Detailed error trace
+
+        # Update post status to Error
+        record.write({
+            'post_estado': 'Error',
+            'state': '01_in_progress'
+        })
+
+        # Log error in the post's chatter
+        record.message_post(body=error_message, message_type='comment')
+
+# Final summary
+if record_count > 0:
+    _logger.info("╔══════════════════════════════════════╗")
+    _logger.info(f"║ RESUMEN FINAL DE PUBLICACIÓN        ║")
+    _logger.info(f"║ Total procesados: {record_count}")
+    _logger.info(f"║ Publicados exitosamente: {success_count}")
+    _logger.info(f"║ Errores: {error_count}")
+    _logger.info("╚══════════════════════════════════════╝")
+else:
+    _logger.info("No hay posts programados para publicar en este momento")
+]]>
         </field>
         <field name="interval_number">10</field>
-        <field name="interval_type">minutes</field> <!-- changed from 'hours' -->
+        <field name="interval_type">minutes</field>
         <field name="active">True</field>
         <field name="priority">0</field>
+        <field name="user_id" ref="base.user_root"/>
     </record>
     <record id="ir_cron_tiktok_renew_token" model="ir.cron">
         <field name="name">GL TikTok Renew Token Daily</field>
