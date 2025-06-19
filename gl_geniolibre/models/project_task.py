@@ -46,6 +46,10 @@ class red_social(models.Model):
 
 class project_task(models.Model):
     _inherit = "project.task"
+    state = fields.Selection(tracking=True)  # track_visibility en versiones antiguas
+    tag_ids = fields.Many2many(tracking=True)
+    user_ids = fields.Many2many(tracking=True)
+
     fecha_publicacion = fields.Datetime("Fecha y hora de Publicación", tracking=True, default=lambda self: fields.Datetime.now())
     inicio_promocion = fields.Date("Inicio de Promoción", tracking=True)
     fin_promocion = fields.Date("Fin de Promoción", tracking=True)

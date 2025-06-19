@@ -36,6 +36,7 @@ class FacebookAdCampaigns(models.Model):
 
 class project_project(models.Model):
     _inherit = "project.project"
+
     partner_id = fields.Many2one('res.partner')
     partner_plan_descripcion = fields.Char(related="partner_id.plan_descripcion")
     partner_plan_post = fields.Integer(string="Posts", related="partner_id.plan_post")
