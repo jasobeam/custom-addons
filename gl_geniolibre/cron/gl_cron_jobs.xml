@@ -11,8 +11,7 @@ records = model.search([
     ('post_estado', '=', 'Programado'),
     ('fecha_publicacion', '<=', time.strftime('%Y-%m-%d %H:%M:%S'))
 ])
-_logger.info("fecha_publicacion")
-_logger.info("time.strftime('%Y-%m-%d %H:%M:%S')")
+
 
 record_count = len(records)
 
@@ -26,6 +25,8 @@ success_count = 0
 error_count = 0
 
 for record in records:
+    _logger.info(record.fecha_publicacion)
+    _logger.info(time.strftime('%Y-%m-%d %H:%M:%S'))
     try:
         _logger.info(f"► Procesando Post ID {record.id}: {record.name or 'Sin nombre'}")
         record.publicar_post()
