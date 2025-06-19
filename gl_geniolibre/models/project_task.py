@@ -647,7 +647,6 @@ class project_task(models.Model):
             published_on = []
 
             procesando = False
-
             # Facebook
             if 'Facebook' in self.red_social_ids.mapped('name'):
                 try:

@@ -7,12 +7,14 @@
         <field name="code">
 <![CDATA[
 # Get all scheduled posts
-now = fields.Datetime.now()
-records_to_process = model.search([
+records = model.search([
     ('post_estado', '=', 'Programado'),
-    ('fecha_publicacion', '<=', now)
+    ('fecha_publicacion', '<=', time.strftime('%Y-%m-%d %H:%M:%S'))
 ])
-record_count = len(records_to_process)
+_logger.info("fecha_publicacion")
+_logger.info("time.strftime('%Y-%m-%d %H:%M:%S')")
+
+record_count = len(records)
 
 if record_count > 0:
     _logger.info("╔══════════════════════════════════════╗")
@@ -23,7 +25,7 @@ if record_count > 0:
 success_count = 0
 error_count = 0
 
-for record in records_to_process:
+for record in records:
     try:
         _logger.info(f"► Procesando Post ID {record.id}: {record.name or 'Sin nombre'}")
         record.publicar_post()
@@ -59,7 +61,7 @@ else:
         </field>
         <field name="interval_number">10</field>
         <field name="interval_type">minutes</field>
-        <field name="active">True</field>
+        <field name="active">False</field>
         <field name="priority">0</field>
         <field name="user_id" ref="base.user_root"/>
     </record>
