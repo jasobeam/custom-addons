@@ -7,6 +7,7 @@
         <field name="code">
 <![CDATA[
 # Get all scheduled posts
+now = fields.Datetime.now()
 records_to_process = model.search([
     ('post_estado', '=', 'Programado'),
     ('fecha_publicacion', '<=', now)

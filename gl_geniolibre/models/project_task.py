@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-:
-import random, re, requests, base64, boto3, json, logging
+import random, re, requests, base64, boto3, logging
 
 from io import BytesIO
 from odoo.tools import html2plaintext
@@ -607,7 +607,7 @@ class project_task(models.Model):
         if not self.red_social_ids:
             raise ValidationError("Debe seleccionar al menos una red social")
 
-        _logger.info("Redes Sociales", "OK")
+        _logger.info("Redes Sociales - OK")
         try:
             # Configuración inicial
             parametros = self.env['ir.config_parameter'].sudo()
@@ -622,7 +622,7 @@ class project_task(models.Model):
             formatted_description = remove_duplicate_links(formatted_description).rstrip()
             combined_text = f"{formatted_description}\n\n{plain_hashtags}"
 
-            _logger.info("Configuración inicial", "OK")
+            _logger.info("Configuración inicial - OK")
             # Validación de credenciales por red social
             credential_errors = []
             if 'Facebook' in self.red_social_ids.mapped('name') and not self.partner_facebook_page_id:
@@ -673,7 +673,7 @@ class project_task(models.Model):
 
                         success_messages.append("Facebook: Publicación exitosa")
                         published_on.append("Facebook")
-                        _logger.info("Facebook", "OK")
+                        _logger.info("Facebook - OK")
                     else:
                         errors.append("Facebook: No se recibió respuesta del servidor")
                 except Exception as e:
@@ -698,7 +698,7 @@ class project_task(models.Model):
                         })
                         success_messages.append("Instagram: Publicación exitosa")
                         published_on.append("Instagram")
-                        _logger.info("Instagram", "OK")
+                        _logger.info("Instagram - OK")
                 except Exception as e:
                     errors.append(f"Instagram: {str(e)}")
 
@@ -712,7 +712,7 @@ class project_task(models.Model):
                         })
                         success_messages.append("TikTok: Publicación exitosa")
                         published_on.append("TikTok")
-                        _logger.info("TikTok", "OK")
+                        _logger.info("TikTok - K")
                     else:
                         errors.append("TikTok: No se recibió respuesta del servidor")
                 except Exception as e:
@@ -729,7 +729,7 @@ class project_task(models.Model):
                         })
                         success_messages.append("LinkedIn: Publicación exitosa")
                         published_on.append("LinkedIn")
-                        _logger.info("LinkedIn", "OK")
+                        _logger.info("LinkedIn - OK")
                     else:
                         errors.append("LinkedIn: No se recibió respuesta del servidor")
                 except Exception as e:
