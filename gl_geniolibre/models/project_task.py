@@ -782,7 +782,7 @@ def upload_files_to_s3(files, aws_api, aws_secret):
     aws_secret_access_key = aws_secret
     bucket_name = 'odoo-geniolibre'
     region_name = 'us-east-2'
-
+    _logger.info("AWS S3 configuracion inicial")
     if not aws_access_key_id or not aws_secret_access_key:
         raise ValidationError("No se configuró correctamente el servicio de AWS.")
 
@@ -846,5 +846,5 @@ def upload_files_to_s3(files, aws_api, aws_secret):
 
         file_url = f"https://{bucket_name}.s3.{region_name}.amazonaws.com/{file_name}"
         uploaded_urls.append(file_url)
-
+    _logger.info("Archivos subidos a AWS")
     return uploaded_urls

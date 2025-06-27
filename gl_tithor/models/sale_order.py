@@ -51,7 +51,7 @@ class Camiseta_Registro(models.Model):
         ('xl', 'XL'),
         ('2xl', '2XL'),
         ('3xl', '3XL'),
-    ], string='Talla Short', required=True, default='m')
+    ], string='Talla Short', default='m')
 
     corte = fields.Selection([
         ('varon', 'Varón'),
@@ -89,7 +89,6 @@ class SaleOrder(models.Model):
             raise ValidationError("Por favor, cargue un archivo Excel (.xlsx).")
 
         tmp_path = None
-
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
                 tmp.write(base64.b64decode(self.archivo_excel))
@@ -123,64 +122,60 @@ class SaleOrder(models.Model):
             for idx, fila in enumerate(hoja.iter_rows(min_row=2), start=2):
                 valores = [celda.value for celda in fila]
 
-                # Validar que los campos obligatorios estén presentes.
-                # Campos obligatorios: tipo, talla_camiseta, talla_short, corte, manga
-                if (len(valores) < 8 or  # Validar longitud
-                        not valores[2] or  # Campo obligatorio: tipo
-                        not valores[4] or  # Campo obligatorio: talla_camiseta
-                        not valores[5] or  # Campo obligatorio: talla_short
-                        not valores[6] or  # Campo obligatorio: corte
-                        not valores[7]  # Campo obligatorio: manga
-                ):
+                # --- 1) VALIDACIÓN DE CAMPOS OBLIGATORIOS -----------------------
+                #  • ‘talla_short’ YA NO es obligatorio
+                if (len(valores) < 8 or  # Longitud mínima
+                        not valores[2] or  # tipo
+                        not valores[4] or  # talla_camiseta
+                        not valores[6] or  # corte
+                        not valores[7]):  # manga
                     registros_omitidos += 1
                     continue
 
-                nombre = valores[1] or None  # Campo opcional
-                tipo = valores[2]  # Campo obligatorio
-                numero = valores[3] if valores[3] is not None else ""  # Campo opcional, vacío como ""
+                nombre = valores[1] or None
+                tipo = valores[2]
+                numero = valores[3] if valores[3] is not None else ""
                 talla_camiseta = valores[4]
-                talla_short = valores[5]
+                talla_short = valores[5]  # ← Puede ser None / ""
                 corte = valores[6]
                 manga = valores[7]
 
-                # Función para normalizar tallas
+                # --- 2) NORMALIZAR TALLAS --------------------------------------
                 def normalizar_talla(talla):
-                    if talla is not None:
+                    if talla is not None and talla != "":
                         if isinstance(talla, (int, float)):
                             talla = str(int(talla))
                         else:
                             talla = str(talla).strip().lower()
-                            if talla.isdigit() or talla in orden_tallas:
-                                talla = talla.lower()
-                            else:
-                                talla = None  # Se descarta si la talla no es válida.
-                    return talla
+                        if talla.isdigit() or talla in orden_tallas:
+                            return talla
+                    return None  # Valor no válido
 
                 talla_camiseta = normalizar_talla(talla_camiseta)
                 talla_short = normalizar_talla(talla_short)
 
-                # Verificar que ambas tallas sean válidas
-                if not talla_camiseta or not talla_short:
+                # Solo ‘talla_camiseta’ sigue siendo imprescindible
+                if not talla_camiseta:
                     registros_omitidos += 1
                     continue
 
-                # Verificar contenido del campo 'manga' si está vacío o contiene valores erróneos como 'manga_cero'
+                # --- 3) AJUSTAR CAMPO 'manga' ----------------------------------
                 if isinstance(manga, str) and manga.strip().lower() == "manga_cero":
-                    manga = "manga_cero"  # Asegurarte de que lo registre de forma literal
+                    manga = "manga_cero"
                 elif not manga:
-                    manga = "Sin información"  # Valor por defecto si está vacío
+                    manga = "Sin información"
 
                 registros.append({
                     'nombre_en_camiseta': nombre,
                     'numero': numero,
                     'tipo': tipo,
                     'talla_camiseta': talla_camiseta,
-                    'talla_short': talla_short,
+                    'talla_short': talla_short or False,  # False/None si viene vacía
                     'corte': corte,
                     'manga': manga,
                 })
 
-            # Ordenar primero por talla_camiseta y después por talla_short.
+            # --- 4) ORDENAR -----------------------------------------------------
             registros_ordenados = sorted(registros, key=lambda r: (orden_tallas.get(
                 r['talla_camiseta'], 999), orden_tallas.get(r['talla_short'], 999)))
 
@@ -190,7 +185,7 @@ class SaleOrder(models.Model):
             for r in registros_ordenados:
                 self.env['camiseta.registro'].create({
                     **r,
-                    'sale_order_id': self.id,
+                    'sale_order_id': self.id
                 })
 
             self.archivo_excel = False
@@ -200,8 +195,8 @@ class SaleOrder(models.Model):
                 'tag': 'display_notification',
                 'params': {
                     'title': 'Importación completada',
-                    'message': f'{len(registros_ordenados)} camisetas importadas correctamente. '
-                               f'{registros_omitidos} filas fueron omitidas por estar incompletas.',
+                    'message': (f'{len(registros_ordenados)} camisetas importadas correctamente. '
+                                f'{registros_omitidos} filas fueron omitidas por estar incompletas.'),
                     'type': 'success',
                     'next': {
                         'type': 'ir.actions.act_window_close'
