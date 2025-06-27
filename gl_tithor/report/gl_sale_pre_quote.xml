@@ -198,7 +198,7 @@
                                                 <t t-esc="cam.talla_camiseta.upper()"/>
                                             </td>
                                             <td>
-                                                <t t-esc="cam.talla_short.upper()"/>
+                                                <t t-esc="(cam.talla_short or '').upper()"/>
                                             </td>
                                             <td>
                                                 <t t-esc="dict(cam._fields['corte'].selection).get(cam.corte)"/>
