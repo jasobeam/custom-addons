@@ -459,7 +459,6 @@ class project_project(models.Model):
                             'shares': total_shares,
                         }
 
-                        print(post_data["message"])
                         posts_matrix.append(post_data)
 
                         # 11. Actualizar estadísticas por tipo
@@ -950,9 +949,15 @@ class project_project(models.Model):
         data_sources = [
             {
                 'name': 'Facebook',
-                'check': self.partner_facebook_page_id and self.facebook_ad_campaigns_ids,
+                'check': self.partner_facebook_page_id,
                 'fetch_method': self.get_facebook_data,
                 'data_key': 'facebook_data',
+            },
+            {
+                'name': 'Instagram',
+                'check': self.partner_facebook_page_id,
+                'fetch_method': self.get_instagram_data,
+                'data_key': 'instagram_data',
             },
             {
                 'name': 'Meta Ads',
