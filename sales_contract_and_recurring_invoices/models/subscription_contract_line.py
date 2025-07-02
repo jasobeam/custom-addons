@@ -27,39 +27,20 @@ class SubscriptionContractLines(models.Model):
     _name = 'subscription.contracts.line'
     _description = 'Subscription Contracts Line'
 
-    subscription_contract_id = fields.Many2one(
-        'subscription.contracts',
-        string='Subscription Contracts',
-        help='Subscription Contract Reference')
-    product_id = fields.Many2one('product.product',
-                                 string='Products',
-                                 help='Products to be added in contract')
-    currency_id = fields.Many2one(string='Currency',
-                                  related='subscription_contract_id.currency_id',
-                                  depends=[
-                                      'subscription_contract_id.currency_id'])
-    description = fields.Text(
-        string="Description", compute='_compute_description', store=True,
-        readonly=False, precompute=True, help='Product description')
-    qty_ordered = fields.Float(string="Quantity",
-                               digits='Product Unit of Measure', default=1.0,
-                               help='Ordered Quantity')
-    product_uom_id = fields.Many2one('uom.uom', string='Unit of Measure',
-                                     compute='_compute_product_uom', store=True,
-                                     help='Unit of measure of product')
-    price_unit = fields.Float(string="Unit Price",
-                              compute='_compute_price_unit',
-                              digits='Product Price',
-                              store=True, readonly=False, precompute=True,
-                              help='Unit price of product')
-    tax_ids = fields.Many2many(comodel_name='account.tax', string="Taxes",
-                               context={'active_test': False},
-                               help='Taxes to be added')
-    discount = fields.Float(string="Discount (%)", digits='Discount',
-                            store=True, readonly=False, help='Discount in %')
-    sub_total = fields.Monetary(
-        string="Total", compute='_compute_amount', store=True, precompute=True,
-        help='Sub Total Amount')
+    subscription_contract_id = fields.Many2one('subscription.contracts', string='Subscription Contracts', help='Subscription Contract Reference')
+    product_id = fields.Many2one('product.product', string='Products', help='Products to be added in contract')
+    currency_id = fields.Many2one(string='Currency', related='subscription_contract_id.currency_id', depends=[
+        'subscription_contract_id.currency_id'
+    ])
+    description = fields.Text(string="Description", compute='_compute_description', store=True, readonly=False, precompute=True, help='Product description')
+    qty_ordered = fields.Float(string="Quantity", digits='Product Unit of Measure', default=1.0, help='Ordered Quantity')
+    product_uom_id = fields.Many2one('uom.uom', string='Unit of Measure', compute='_compute_product_uom', store=True, help='Unit of measure of product')
+    price_unit = fields.Float(string="Unit Price", compute='_compute_price_unit', digits='Product Price', store=True, readonly=False, precompute=True, help='Unit price of product')
+    tax_ids = fields.Many2many(comodel_name='account.tax', string="Taxes", context={
+        'active_test': False
+    }, help='Taxes to be added')
+    discount = fields.Float(string="Discount (%)", digits='Discount', store=True, readonly=False, help='Discount in %')
+    sub_total = fields.Monetary(string="Total", compute='_compute_amount', store=True, precompute=True, help='Sub Total Amount')
 
     @api.depends('product_id')
     def _compute_description(self):
@@ -67,8 +48,7 @@ class SubscriptionContractLines(models.Model):
         for option in self:
             if not option.product_id:
                 continue
-            product_lang = option.product_id.with_context(
-                lang=self.subscription_contract_id.partner_id.lang)
+            product_lang = option.product_id.with_context(lang=self.subscription_contract_id.partner_id.lang)
             option.description = product_lang.get_product_multiline_description_sale()
 
     @api.depends('product_id')

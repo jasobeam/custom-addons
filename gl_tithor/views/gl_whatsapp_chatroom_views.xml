@@ -62,7 +62,8 @@
     <menuitem id="menu_whatsapp_root"
               name="WhatsApp Chat"
               sequence="10"
-              web_icon="gl_tithor,static/src/img/whatsapp.png"/>
+              web_icon="gl_tithor,static/src/img/whatsapp.png"
+              groups="base.group_user,base.group_system"/>
 
     <menuitem id="menu_whatsapp_chatroom"
               name="Chatrooms"

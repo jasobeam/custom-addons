@@ -4,22 +4,46 @@ from odoo import http
 from odoo.http import request
 from odoo.addons.portal.controllers.portal import CustomerPortal
 
+class PortalAccount(CustomerPortal):
+    """ Super customer portal and get count of contracts """
+
+    def _prepare_home_portal_values(self, counters):
+        values = super()._prepare_home_portal_values(counters)
+
+        if 'contract_count' in counters:  # Solo calcular si se solicita
+            user = request.env.user
+            Contract = request.env['subscription.contracts'].sudo()
+
+            domain = []
+            if not user.has_group('base.group_system'):
+                domain = [
+                    ('partner_id', '=', user.partner_id.id)
+                ]
+
+            values['contract_count'] = Contract.search_count(domain)
+
+        return values
+
 class ContractsController(http.Controller):
     """Handles listing and displaying subscription contracts in the portal"""
 
     @http.route(['/my/contracts'], type='http', auth='user', website=True)
     def portal_contracts_list(self, **kwargs):
-        # Fetch current user and apply domain
-        user = request.env.user
-        domain = []
-        if not user.has_group('base.group_system'):
-            domain = [
-                ('partner_id', '=', user.partner_id.id)
-            ]
+        # Obtener el partner_id del usuario actual
+        partner_id = request.env.user.partner_id.id
+
+        # Dominio para filtrar solo contratos donde el usuario es el cliente
+        domain = [
+            ('partner_id', '=', partner_id)
+        ]
+
+        # Buscar los contratos (con sudo() para evitar problemas de permisos)
         records = request.env['subscription.contracts'].sudo().search(domain)
-        # Render the contracts list template
+
+        # Renderizar la plantilla con los registros
         return request.render('sales_contract_and_recurring_invoices.tmp_contract_details', {
-            'records': records
+            'records': records,
+            'page_name': 'contracts'  # Útil para estilos/css si lo necesitas
         })
 
     @http.route(['/my/contracts/<int:contract_id>'], type='http', auth='user', website=True)

@@ -136,9 +136,9 @@ class project_project(models.Model):
 
         for record in self:
             # Asignar valores "actuales" en caso de no estar en 'vals'
-            if record.date_start and record.date:
-                if (record.date - record.date_start).days > 30:
-                    raise ValidationError("El rango entre fechas no puede ser mayor a 30 días.")
+            # if record.date_start and record.date:
+            #     if (record.date - record.date_start).days > 30 and not self.google_ad_campaigns_ids:
+            #         raise ValidationError("El rango entre fechas no puede ser mayor a 30 días.")
 
             updated_partner_id = partner_id or record.partner_id.id
             updated_project_type = project_type or record.project_type
@@ -996,7 +996,7 @@ class project_project(models.Model):
         has_errors = False
 
         try:
-            if not (self.partner_facebook_page_id or self.partner_instagram_page_id):
+            if not (self.partner_facebook_page_id or self.partner_instagram_page_id) and not self.google_ad_campaigns_ids:
                 raise ValidationError("Debe configurar al menos una cuenta de Facebook o Instagram.")
 
             # Rango de fechas

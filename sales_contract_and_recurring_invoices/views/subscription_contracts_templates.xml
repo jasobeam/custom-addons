@@ -36,7 +36,6 @@
                                     <th>End Date</th>
                                     <th>Date of Next Invoice</th>
                                     <th>Stage</th>
-                                    <th>Print</th>
                                 </b>
                             </h6>
                         </tr>
@@ -61,13 +60,7 @@
                                     <span t-esc="order.next_invoice_date"/>
                                 </td>
                                 <td>
-                                    <span t-esc="order.state"/>
-                                </td>
-                                <td>
-                                    <a t-attf-class='btn btn-success'
-                                       t-attf-href='/report/pdf/{{order.id}}'>
-                                        Report
-                                    </a>
+                                    <span t-field="order.state"/>
                                 </td>
                             </tr>
                         </t>
@@ -136,7 +129,7 @@
                         <th>Stage:</th>
                         <td>
                             <t t-if="record.state">
-                                <t t-esc="record.state"/>
+                                <span t-field="record.state"/>
                             </t>
                         </td>
                         <th>Date of Next Invoice:</th>
