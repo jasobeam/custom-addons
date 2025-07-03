@@ -34,6 +34,7 @@
 
         'report/gl_print_task.xml',
         'report/gl_print_marketing_report.xml',
+        'report/gl_print_recibo_venta.xml',
 
         'cron/gl_cron_jobs.xml',
     ],

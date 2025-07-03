@@ -136,9 +136,10 @@ class project_project(models.Model):
 
         for record in self:
             # Asignar valores "actuales" en caso de no estar en 'vals'
-            # if record.date_start and record.date:
-            #     if (record.date - record.date_start).days > 30 and not self.google_ad_campaigns_ids:
-            #         raise ValidationError("El rango entre fechas no puede ser mayor a 30 días.")
+            # if not self.google_ad_campaigns_ids:
+            #     if record.date_start and record.date:
+            #         if (record.date - record.date_start).days > 30:
+            #             raise ValidationError("El rango entre fechas no puede ser mayor a 30 días.")
 
             updated_partner_id = partner_id or record.partner_id.id
             updated_project_type = project_type or record.project_type
