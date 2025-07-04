@@ -50,7 +50,7 @@
                                        options="{'no_create': True , 'accepted_file_extensions': '.jpeg,.jpg,.mp4'}"/>
                             </group>
                             <group>
-                                <field name="imagen_portada" widget="image"/>
+                                <field name="imagen_portada" widget="image" accept=".jpg,.jpeg,image/jpeg"/>/>
                             </group>
                         </group>
                     </page>
@@ -82,6 +82,7 @@
                     <field name="fb_post_url" widget="url" invisible="not fb_post_url"/>
                     <field name="inst_post_url" widget="url" invisible="not inst_post_url"/>
                     <field name="tiktok_post_url" widget="url" invisible="not tiktok_post_url"/>
+                    <field name="linkedin_post_url" widget="url" invisible="not linkedin_post_url"/>
                     <field name="post_estado"/>
                     <div class="d-flex justify-content-end o_state_container" invisible="not active">
                         <field name="state" widget="project_task_state_selection" class="o_task_state_widget"

@@ -6,11 +6,14 @@ from odoo.tools import html2plaintext
 from odoo import models, fields, api
 from datetime import datetime
 from odoo.exceptions import ValidationError
+import mimetypes
+
 
 _logger = logging.getLogger(__name__)
 
 API_VERSION = "v23.0"
 LinkedIn_Version = "202505"
+CHUNK_SIZE = 4 * 1024 * 1024  # 4 MB recomendado para vídeos
 
 
 class red_social(models.Model):
@@ -82,6 +85,8 @@ class project_task(models.Model):
     inst_post_url = fields.Char(string="Instagram URL")
     tiktok_post_id = fields.Char(string="TikTok Post ID")
     tiktok_post_url = fields.Char(string="TikTok URL")
+    linkedin_post_id = fields.Char(string="LinkedIn Post ID")
+    linkedin_post_url = fields.Char(string="LinkedIn URL")
 
     def copy(self, default=None):
         self.ensure_one()
@@ -263,6 +268,10 @@ class project_task(models.Model):
                 else:
                     error_message.append("El video aún no fue procesado")
 
+            # Generar Permalink de Instagram
+            if self.linkedin_post_id and self.post_estado == "Publicado":
+                self.linkedin_post_url = f"https://www.linkedin.com/feed/update/{self.linkedin_post_id}/"
+
             # Mostrar errores acumulados si los hay
             if error_message:
                 return {
@@ -314,6 +323,7 @@ class project_task(models.Model):
     def publicar_post(self):
         BASE_URL = f'https://graph.facebook.com/{API_VERSION}'
         _logger.info("Operación Iniciada")
+
         def remove_duplicate_links(text):
             seen_urls = set()
 
@@ -450,7 +460,6 @@ class project_task(models.Model):
                             'media_type': 'STORIES'
                         }
                     else:  # Publicación de Reels
-                        cover_url = upload_files_to_s3([("portada.jpg", self.imagen_portada)], aws_api, aws_secret)[0]
                         container_params = {
                             'access_token': self.partner_page_access_token,
                             'caption': combined_text,
@@ -535,72 +544,236 @@ class project_task(models.Model):
             return response_data["data"]["publish_id"]
 
         def publish_on_linkedin(media_urls):
-            linkedin_access_token = self.env['ir.config_parameter'].sudo().get_param('linkedin.access_token')
-            ORG_URN = "urn:li:organization:" + self.partner_linkedin_page_id  # Replace with your organization URN
-            # Headers for all requests
+
+            self.ensure_one()
+
+            # -------------------------------------------------- Validaciones básicas
+            if not media_urls:
+                raise ValidationError("No se proporcionaron URLs de medios")
+
+            linkedin_access_token = (self.env["ir.config_parameter"].sudo().get_param("linkedin.access_token"))
+            if not linkedin_access_token:
+                raise ValidationError("Falta configurar linkedin.access_token")
+
+            org_urn = f"urn:li:organization:{self.partner_linkedin_page_id}"
             headers = {
                 "Authorization": f"Bearer {linkedin_access_token}",
                 "LinkedIn-Version": LinkedIn_Version,
                 "X-RestLi-Protocol-Version": "2.0.0",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
+            session = requests.Session()
+            session.headers.update(headers)
 
-            # 1. Initialize image upload
-            init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
-            init_data = {
-                "initializeUploadRequest": {
-                    "owner": ORG_URN
-                }
-            }
+            # Combinar título y descripción
 
             try:
-                # Initialize upload
-                init_response = requests.post(init_url, headers=headers, json=init_data)
-                init_response.raise_for_status()
+                # ================================================= VIDEO (reel) ====
+                if self.tipo == "video_reels":
+                    if len(media_urls) != 1:
+                        raise ValidationError("Los Reels solo admiten un (1) video")
 
-                # Extract values from response
-                upload_url = init_response.json()["value"]["uploadUrl"]
-                image_urn = init_response.json()["value"]["image"]
+                    # 1‑A  initializeUpload
+                    head_resp = requests.head(media_urls[0])
+                    head_resp.raise_for_status()
+                    size_bytes = int(head_resp.headers.get("Content-Length", 0))
+                    if size_bytes == 0:
+                        raise ValidationError("No se pudo obtener el tamaño del video")
 
-                # 2. Upload the image
-                image_data = requests.get(media_urls[0]).content
-                upload_headers = {
-                    "Authorization": f"Bearer {linkedin_access_token}",
-                    "Content-Type": "image/jpeg"
-                }
+                    # ¿Tenemos portada?
+                    has_thumbnail = bool(self.imagen_portada)
 
-                upload_response = requests.put(upload_url, headers=upload_headers, data=image_data)
-                upload_response.raise_for_status()
-
-                # 3. Create post with the image
-                post_url = "https://api.linkedin.com/rest/posts"
-                post_data = {
-                    "author": ORG_URN,
-                    "commentary": "Texto de tu publicación con imagen en LinkedIn!",
-                    "visibility": "PUBLIC",
-                    "distribution": {
-                        "feedDistribution": "MAIN_FEED",
-                        "targetEntities": [],
-                        "thirdPartyDistributionChannels": []
-                    },
-                    "content": {
-                        "media": {
-                            "title": "Título de la imagen",
-                            "id": image_urn
+                    init_payload = {
+                        "initializeUploadRequest": {
+                            "owner": org_urn,
+                            "fileSizeBytes": size_bytes,
+                            "uploadCaptions": False,
+                            "uploadThumbnail": has_thumbnail  # ▶️ TRUE solo si hay portada
                         }
-                    },
-                    "lifecycleState": "PUBLISHED",
-                    "isReshareDisabledByAuthor": False
+                    }
+
+                    init_resp = session.post("https://api.linkedin.com/rest/videos?action=initializeUpload", json=init_payload)
+
+                    init_resp.raise_for_status()
+                    init_json = init_resp.json()
+
+                    video_urn = init_json["value"]["video"]
+                    upload_token = init_json["value"]["uploadToken"]
+                    upload_instructions = init_json["value"]["uploadInstructions"]
+                    thumbnail_url = init_json["value"].get("thumbnailUploadUrl")  # ← solo si pedimos thumbnail
+
+                    uploaded_etags = []
+                    for instruction in upload_instructions:
+                        upload_url = instruction["uploadUrl"]
+                        first_byte = instruction["firstByte"]
+                        last_byte = instruction["lastByte"]
+                        chunk_size = last_byte - first_byte + 1
+                        range_header = f"bytes={first_byte}-{last_byte}"
+
+                        # Descargar el chunk exacto
+                        chunk_resp = requests.get(media_urls[0], headers={
+                            "Range": range_header
+                        }, stream=True)
+                        print("chunk_resp", chunk_resp)
+
+                        chunk_resp.raise_for_status()
+                        chunk_data = chunk_resp.content  # Leer contenido completo
+
+                        put_headers = {
+                            "Content-Type": "application/octet-stream",
+                            "Content-Length": str(chunk_size)
+                        }
+
+                        # Subir a LinkedIn
+                        upload_resp = session.put(upload_url, headers=put_headers, data=chunk_data, timeout=30)
+                        print("Subir a LinkedIn", upload_resp)
+                        upload_resp.raise_for_status()
+
+                        etag = upload_resp.headers.get("ETag")
+                        if not etag:
+                            raise ValidationError("No se recibió ETag al subir parte del video")
+                        uploaded_etags.append(etag)
+
+                        # ------------------------------------------------------------------ 1‑C  subir la miniatura (si existe)
+
+                    if has_thumbnail and thumbnail_url:
+                        thumb_bytes = base64.b64decode(self.imagen_portada)
+                        session.put(thumbnail_url, headers={
+                            "Content-Type": "image/jpeg"
+                        },  # fijo, siempre JPG
+                            data=thumb_bytes, timeout=15, ).raise_for_status()
+
+                    # 1‑C Finalizar la subida
+                    finalize_payload = {
+                        "finalizeUploadRequest": {
+                            "video": video_urn,
+                            "uploadToken": upload_token,
+                            "uploadedPartIds": uploaded_etags  # ❗ ETags, no partNumbers
+                        }
+                    }
+                    finalize_resp = session.post("https://api.linkedin.com/rest/videos?action=finalizeUpload", json=finalize_payload)
+                    print("finalize_resp", finalize_resp)
+                    finalize_resp.raise_for_status()
+
+                    # Estado "procesando"
+                    self.post_estado = "Procesando"
+                    self.linkedin_post_id = video_urn
+
+                    # 1‑D Crear el post (reel) usando el video_urn
+                    post_data = {
+                        "author": org_urn,
+                        "commentary": combined_text,
+                        "visibility": "PUBLIC",
+                        "distribution": {
+                            "feedDistribution": "MAIN_FEED",
+                            "targetEntities": [],
+                            "thirdPartyDistributionChannels": [],
+                        },
+                        "content": {
+                            "media": {
+                                "id": video_urn,
+                            }
+                        },
+                        "lifecycleState": "PUBLISHED",
+                        "isReshareDisabledByAuthor": False,
+                    }
+
+                # =============================================== IMÁGENES / CARRUSEL
+                elif self.tipo == "feed":
+                    media_urns = []
+                    for url in media_urls:
+                        # 2‑A  initializeUpload por imagen
+                        init_resp = session.post("https://api.linkedin.com/rest/images?action=initializeUpload", json={
+                            "initializeUploadRequest": {
+                                "owner": org_urn
+                            }
+                        })
+                        init_resp.raise_for_status()
+                        init_json = init_resp.json()
+
+                        image_urn = init_json["value"]["image"]
+                        upload_url = init_json["value"]["uploadUrl"]
+                        mime, _ = mimetypes.guess_type(url)
+
+                        # 2‑B  subir la imagen
+                        img_content = requests.get(url).content
+                        requests.put(upload_url, headers={
+                            "Content-Type": mime or "application/octet-stream",
+                        }, data=img_content).raise_for_status()
+                        media_urns.append(image_urn)
+
+                    # 2‑C  crear post según 1 o varias imágenes
+                    post_data = {
+                        "author": org_urn,
+                        "commentary": combined_text,
+                        "visibility": "PUBLIC",
+                        "distribution": {
+                            "feedDistribution": "MAIN_FEED",
+                            "targetEntities": [],
+                            "thirdPartyDistributionChannels": [],
+                        },
+                        "lifecycleState": "PUBLISHED",
+                        "isReshareDisabledByAuthor": False,
+                    }
+                    if len(media_urns) == 1:
+                        post_data["content"] = {
+                            "media": {
+                                "id": media_urns[0]
+                            }
+                        }
+                    else:
+                        post_data["content"] = {
+                            "multiImage": {
+                                "images": [{
+                                    "id": u
+                                } for u in media_urns]
+                            }
+                        }
+
+                # ======================================================= Otros tipos
+                else:
+                    raise ValidationError(f"Tipo de publicación no soportado: {self.tipo}")
+
+                # =============================================== 3) Crear el post
+                post_resp = session.post("https://api.linkedin.com/rest/posts", json=post_data)
+
+                post_resp.raise_for_status()
+
+                post_urn = post_resp.headers.get("X-RestLi-Id")
+                if not post_urn:
+                    raise ValidationError("LinkedIn no devolvió un URN en X‑RestLi‑Id")
+
+                # Solo si no es video, marcamos como publicado
+                if self.tipo != "video_reels":
+                    self.post_estado = "Publicado"
+
+                return {
+                    "post_id": post_urn,
+                    "post_url": f"https://www.linkedin.com/feed/update/{post_urn}/"
                 }
 
-                post_response = requests.post(post_url, headers=headers, json=post_data)
-                post_response.raise_for_status()
+            # ---------------------------------------------------- Manejo de errores
             except requests.exceptions.HTTPError as err:
-                print(f"Response content: {err.response.text}")
+                self.post_estado = "error"
+                error_msg = f"Error HTTP {err.response.status_code}"
+                try:
+                    error_details = err.response.json()
+                    if 'message' in error_details:
+                        error_msg += f": {error_details['message']}"
+                    elif 'error' in error_details:
+                        error_msg += f": {error_details['error']}"
+                except:
+                    error_msg += f": {err.response.text[:200]}"
+
+                raise ValidationError(error_msg) from err
+
             except Exception as e:
-                print(f"An error occurred: {str(e)}")
+                self.post_estado = "error"
+                raise ValidationError(f"Error inesperado: {str(e)}") from e
 
         # Validaciones iniciales (detienen todo el proceso si fallan)
+        if not self.imagen_portada and self.tipo == "video_reels":
+            raise ValidationError("Debe especificar una portada para el reel")
 
         if not self.fecha_publicacion:
             raise ValidationError("Debe seleccionar una fecha de publicación")
@@ -649,6 +822,9 @@ class project_task(models.Model):
             errors = []
             success_messages = []
             published_on = []
+
+            if self.imagen_portada and self.tipo == "video_reels":
+                cover_url = upload_files_to_s3([("portada.jpg", self.imagen_portada)], aws_api, aws_secret)[0]
 
             procesando = False
             # Facebook
@@ -724,11 +900,13 @@ class project_task(models.Model):
             # LinkedIn
             if 'LinkedIn' in self.red_social_ids.mapped('name'):
                 try:
+                    print("Inicio Publicacion Linkedin")
                     linkedin_response = publish_on_linkedin(media_urls)
+                    print(linkedin_response)
                     if linkedin_response:
                         self.write({
-                            'linkedin_post_id': linkedin_response,
-                            'linkedin_post_url': f'https://www.linkedin.com/feed/update/{linkedin_response}'
+                            'linkedin_post_id': linkedin_response["post_id"],
+                            'linkedin_post_url': linkedin_response["post_url"]
                         })
                         success_messages.append("LinkedIn: Publicación exitosa")
                         published_on.append("LinkedIn")
