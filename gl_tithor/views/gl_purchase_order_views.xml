@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_purchase_order_form_editable_dates" model="ir.ui.view">
+        <field name="name">purchase.order.form.editable.dates</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <!-- Localiza el campo date_order original y modifícalo -->
+            <field name="date_order" position="replace">
+                <field name="date_order"/>
+            </field>
+
+            <!-- Reemplaza el bloque de aprobación con campos editables -->
+            <xpath expr="//field[@name='date_order']/following-sibling::label[@for='date_approve']" position="replace">
+                <label for="date_approve" readonly="False"/>
+            </xpath>
+
+            <xpath expr="//div[@name='date_approve']" position="replace">
+                <div name="date_approve" class="o_row">
+                    <field name="date_approve" readonly="False"/>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

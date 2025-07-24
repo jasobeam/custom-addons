@@ -29,6 +29,7 @@
         'views/gl_res_config_settings_views.xml',
         'views/gl_sale_order_line_views.xml',
         'views/gl_whatsapp_chatroom_views.xml',
+        'views/gl_purchase_order_views.xml',
 
 
         'report/gl_sale_pre_quote.xml',
