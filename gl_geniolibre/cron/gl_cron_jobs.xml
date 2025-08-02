@@ -37,14 +37,10 @@ for record in records:
         error_count += 1
         error_message = f"Error al publicar el post: {str(e)}"
         _logger.error(f"✖ ERROR en Post ID {record.id}: {e}")
-        _logger.error(traceback.format_exc())  # Detailed error trace
-
-        # Update post status to Error
         record.write({
             'post_estado': 'Error',
             'state': '01_in_progress'
         })
-
         # Log error in the post's chatter
         record.message_post(body=error_message, message_type='comment')
 
