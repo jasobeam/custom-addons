@@ -12,12 +12,14 @@ from odoo.exceptions import ValidationError
 
 LinkedIn_Version = "202505"
 
+
 class GoogleAdsAccount(models.Model):
     _name = 'google.ads.account'
     _description = 'Cuenta de Google Ads'
 
     name = fields.Char("Nombre")
     account_id = fields.Char("ID de Cuenta", required=True)
+
 
 class FacebookAdAccount(models.Model):
     _name = 'facebook.ad.account'
@@ -26,6 +28,7 @@ class FacebookAdAccount(models.Model):
     name = fields.Char('Name')
     account_id = fields.Char('Account ID')
 
+
 class LinkedInOrganization(models.Model):
     _name = 'linkedin.organization'
     _description = 'LinkedIn Organization'
@@ -33,6 +36,7 @@ class LinkedInOrganization(models.Model):
     name = fields.Char('Nombre de la Organización')
     account_id = fields.Char('ID de la Organización')  # Solo el ID numérico (ej: "105978413")
     full_urn = fields.Char('URN Completo')  # Campo técnico: "urn:li:organization:105978413"
+
 
 class Partner(models.Model):
     _inherit = "res.partner"
@@ -48,26 +52,25 @@ class Partner(models.Model):
     moneda = fields.Many2one('res.currency', tracking=True)
 
     # Facebook
-    id_facebook_ad_account = fields.Char(string="ID Cuenta Publicitaria", related='facebook_ad_account.account_id', readonly=True,  store=True, )
-    facebook_ad_account = fields.Many2one( 'facebook.ad.account', string='Cuenta publicitaria de Facebook' )
+    id_facebook_ad_account = fields.Char(string="ID Cuenta Publicitaria", related='facebook_ad_account.account_id', readonly=True, store=True, )
+    facebook_ad_account = fields.Many2one('facebook.ad.account', string='Cuenta publicitaria de Facebook')
     facebook_page_id = fields.Char(string="Facebook Page id", tracking=True)
     facebook_page_access_token = fields.Char(readonly=True)
     instagram_page_id = fields.Char(readonly=True)
 
     # TikTok
     tiktok_auth_code = fields.Char(string="TikTok Auth Code", tracking=True)
-    tiktok_access_token = fields.Char(string="TikTok Page id", tracking=True, readonly=True)
-    tiktok_refresh_token = fields.Char(readonly=True)
-    tiktok_expires_in = fields.Integer(readonly=True)
-    tiktok_refresh_expires_in = fields.Integer(readonly=True)
-    tiktok_issued_at = fields.Integer(readonly=True)
+    tiktok_access_token = fields.Char(string="TikTok Page id", tracking=True)
+    tiktok_refresh_token = fields.Char()
+    tiktok_expires_in = fields.Integer()
+    tiktok_refresh_expires_in = fields.Integer()
+    tiktok_issued_at = fields.Integer()
 
     # Google Ads
     google_ads_account = fields.Many2one('google.ads.account', string='Cuenta de Google Ads')
-    id_google_ads_account = fields.Char(string="ID Cuenta Google Ads", related='google_ads_account.account_id',
-                                        readonly=True, store=True)
+    id_google_ads_account = fields.Char(string="ID Cuenta Google Ads", related='google_ads_account.account_id', readonly=True, store=True)
 
-    #LinkeIn
+    # LinkeIn
     linkedin_organization = fields.Many2one('linkedin.organization', string='Organización de LinkedIn')
     id_linkedin_organization = fields.Char(string="ID Organización LinkedIn", related='linkedin_organization.account_id', readonly=True, store=True)
 
@@ -94,10 +97,14 @@ class Partner(models.Model):
 
             # 1) Actualizar o crear
             for acc in accounts:
-                existing = AdAccount.search([('account_id', '=', acc['account_id'])], limit=1)
+                existing = AdAccount.search([
+                                                ('account_id', '=', acc['account_id'])
+                                            ], limit=1)
                 if existing:
                     if existing.name != acc['name']:
-                        existing.write({'name': acc['name']})
+                        existing.write({
+                                           'name': acc['name']
+                                       })
                 else:
                     AdAccount.create({
                         'name': acc['name'],
@@ -105,7 +112,9 @@ class Partner(models.Model):
                     })
 
             # 2) Eliminar las cuentas que ya no existen en Facebook
-            stale = AdAccount.search([('account_id', 'not in', api_ids)])
+            stale = AdAccount.search([
+                                         ('account_id', 'not in', api_ids)
+                                     ])
             if stale:
                 stale.unlink()
 
@@ -168,7 +177,7 @@ class Partner(models.Model):
             params = {
                 'client_key': tiktok_client,
                 'response_type': 'code',
-                'scope': 'user.info.basic,video.upload,video.publish,video.list,user.info.stats',
+                'scope': 'user.info.basic,video.upload,video.publish,video.list,user.info.stats,user.info.profile',
                 'redirect_uri': tiktok_redirect,
                 'state': self.id,
                 'code_challenge': self.code_challenge,
@@ -231,7 +240,9 @@ class Partner(models.Model):
                     'params': {
                         'message': "El token ha sido actualizado",
                         'type': 'success',
-                        'next': {'type': 'ir.actions.act_window_close'},
+                        'next': {
+                            'type': 'ir.actions.act_window_close'
+                        },
                     }
                 }
             else:
@@ -243,7 +254,9 @@ class Partner(models.Model):
                 'params': {
                     'message': "El token aún es válido.",
                     'type': 'success',
-                    'next': {'type': 'ir.actions.act_window_close'},
+                    'next': {
+                        'type': 'ir.actions.act_window_close'
+                    },
                 }
             }
 
@@ -283,7 +296,9 @@ class Partner(models.Model):
             customer = row.customer_client
             customer_id = customer.client_customer.split("/")[-1]
             name = customer.descriptive_name
-            if not account_model.search([("account_id", "=", customer_id)]):
+            if not account_model.search([
+                                            ("account_id", "=", customer_id)
+                                        ]):
                 account_model.create({
                     "name": name or f"Cuenta {customer_id}",
                     "account_id": customer_id,
@@ -334,7 +349,7 @@ class Partner(models.Model):
             "Authorization": f"Bearer {access_token}",
             "X-Restli-Protocol-Version": "2.0.0",
             "Content-Type": "application/json",
-            "LinkedIn-Version":LinkedIn_Version
+            "LinkedIn-Version": LinkedIn_Version
         }
 
         ######################### Lógica Principal #################################

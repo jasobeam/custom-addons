@@ -11,10 +11,10 @@
                         <group>
                             <field name="description" type="html" options="{'collaborative': true, 'resizable': true}"
                                    placeholder="Texto en la descripcion del post..."/>
-                            <field name="hashtags"/>
+                            <field name="hashtags" invisible="tipo == 'otro' "/>
                             <field name="texto_en_diseno" type="html"
                                    options="{'collaborative': true, 'resizable': true}"
-                                   placeholder="Texto que se usará en el diseño..."/>
+                                   placeholder="Texto que se usará en el diseño..." invisible="tipo == 'otro' "/>
                         </group>
                     </page>
                     <page string="Publicación Paga" invisible="tipo == 'otro'">
@@ -43,7 +43,7 @@
                     </div>
                 </xpath>
                 <xpath expr="//page[@name='description_page']" position="after">
-                    <page string="Archivos de la Tarea">
+                    <page string="Archivos de la Tarea" invisible="tipo == 'otro' ">
                         <group>
                             <group>
                                 <field name="adjuntos_ids" widget="many2many_binary"
@@ -59,7 +59,7 @@
                     <field name="tipo" widget="selection" readonly="post_estado != 'Pendiente'"/>
                     <field name="fecha_publicacion" readonly="post_estado != 'Pendiente'" invisible="tipo == 'otro' "/>
                     <field name="red_social_ids" readonly="post_estado != 'Pendiente'" widget="many2many_tags"
-                           options="{'no_create_edit': True}"/>
+                           options="{'no_create_edit': True}" invisible="tipo == 'otro' "/>
                     <div class="row container">
                         <div class="col-12 p-0 me-3 mt-3">
                             <button string="Programar" icon="fa-calendar" type="object" name="programar_post"
@@ -83,7 +83,7 @@
                     <field name="inst_post_url" widget="url" invisible="not inst_post_url"/>
                     <field name="tiktok_post_url" widget="url" invisible="not tiktok_post_url"/>
                     <field name="linkedin_post_url" widget="url" invisible="not linkedin_post_url"/>
-                    <field name="post_estado"/>
+                    <field name="post_estado" invisible="tipo == 'otro'"/>
                     <div class="d-flex justify-content-end o_state_container" invisible="not active">
                         <field name="state" widget="project_task_state_selection" class="o_task_state_widget"
                                string="Estado de la Tarea"/>
@@ -117,12 +117,13 @@
             <field name="inherit_id" ref="project.view_task_tree2"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='project_id']" position="before">
+
                     <field name="post_estado" widget="badge" string="Estado de Publicación"
                            decoration-info="post_estado == 'Procesando'"
                            decoration-warning="post_estado == 'Programado'"
                            decoration-danger="post_estado == 'Error'"
-                           decoration-success="post_estado == 'Publicado'"/>
-                    <field name="fecha_publicacion" string="Fecha de Publicación"/>
+                           decoration-success="post_estado == 'Publicado'" invisible="tipo == 'otro'"/>
+                    <field name="fecha_publicacion" string="Fecha de Publicación" invisible="tipo == 'otro'"/>
                 </xpath>
             </field>
         </record>

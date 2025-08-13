@@ -46,7 +46,8 @@
                     color: #555;
                     }
                     body {
-                    font-family: 'NotoSans', 'Roboto', 'Helvetica', 'Arial', 'Noto Color Emoji', 'Twitter Color Emoji', sans-serif;
+                    font-family: 'NotoSans', 'Roboto', 'Helvetica', 'Arial', 'Noto Color Emoji', 'Twitter Color Emoji',
+                    sans-serif;
                     -webkit-print-color-adjust: exact !important;
                     color: #333;
                     line-height: 1.5;
@@ -297,6 +298,9 @@
 
                     .header-search-console {
                     background-color: #34A853; /* Search Console: verde Google */
+                    }
+                    .header-tiktok {
+                    background-color: black; /* Search Console: verde Google */
                     }
                 </style>
                 <div class="report-header">
@@ -991,6 +995,138 @@
                     </div>
                     <div class="page-break"/>
                 </t>
+                <!-- #############################################################  Sección de Google Ads -->
+                <t t-if="data['tiktok_data']">
+                    <div class="page">
+                        <img src="/gl_geniolibre/static/src/img/banner_tiktok.jpg" alt="TikTok"
+                             style="max-width: 100%; height: auto;"/>
+
+                        <!-- Datos del Usuario -->
+<!--                        <div>-->
+<!--                            <h3>Perfil</h3>-->
+<!--                            <table style="width: 100%; border-spacing: 16px;">-->
+<!--                                <tr>-->
+<!--                                    <td>-->
+<!--                                        <img t-att-src="data['tiktok_data']['user']['avatar_url']"-->
+<!--                                             alt="Avatar" style="width: 80px; height: 80px; border-radius: 50%;"/>-->
+<!--                                    </td>-->
+<!--                                    <td>-->
+<!--                                        <a style="color:black;" t-att-href="data['tiktok_data']['user']['profile_deep_link']"-->
+<!--                                           target="_blank">-->
+<!--                                        <strong>-->
+<!--                                            <t t-esc="data['tiktok_data']['user']['display_name']"/>-->
+<!--                                            (@<t t-esc="data['tiktok_data']['user']['username']"/>)-->
+<!--                                        </strong>-->
+<!--                                        </a>-->
+<!--                                    </td>-->
+<!--                                </tr>-->
+<!--                            </table>-->
+<!--                        </div>-->
+
+                        <!-- Resumen General -->
+                        <div>
+                            <h3>Totales</h3>
+                            <table style="width: 100%; border-spacing: 16px;">
+                                <tr class="text-center header-tiktok">
+                                    <td class="metric-card">
+                                        <div class="metric-value">
+                                            <t t-esc="data['tiktok_data']['user']['follower_count']"/>
+                                        </div>
+                                        <div class="metric-label">Seguidores</div>
+                                    </td>
+                                    <td class="metric-card">
+                                        <div class="metric-value">
+                                            <t t-esc="data['tiktok_data']['user']['following_count']"/>
+                                        </div>
+                                        <div class="metric-label">Siguiendo</div>
+                                    </td>
+                                    <td class="metric-card">
+                                        <div class="metric-value">
+                                            <t t-esc="data['tiktok_data']['user']['likes_count']"/>
+                                        </div>
+                                        <div class="metric-label">Likes Totales</div>
+                                    </td>
+                                    <td class="metric-card">
+                                        <div class="metric-value">
+                                            <t t-esc="data['tiktok_data']['user']['video_count']"/>
+                                        </div>
+                                        <div class="metric-label">Videos</div>
+                                    </td>
+                                </tr>
+                                <tr class="text-center header-tiktok">
+                                    <td class="metric-card">
+                                        <div class="metric-value">
+                                            <t t-esc="data['tiktok_data']['resumen']['total_views']"/>
+                                        </div>
+                                        <div class="metric-label">Vistas Totales</div>
+                                    </td>
+                                    <td class="metric-card">
+                                        <div class="metric-value">
+                                            <t t-esc="data['tiktok_data']['resumen']['total_likes']"/>
+                                        </div>
+                                        <div class="metric-label">Likes en Videos</div>
+                                    </td>
+                                    <td class="metric-card">
+                                        <div class="metric-value">
+                                            <t t-esc="data['tiktok_data']['resumen']['total_comments']"/>
+                                        </div>
+                                        <div class="metric-label">Comentarios</div>
+                                    </td>
+                                    <td class="metric-card">
+                                        <div class="metric-value">
+                                            <t t-esc="data['tiktok_data']['resumen']['total_shares']"/>
+                                        </div>
+                                        <div class="metric-label">Compartidos</div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <!-- Top Videos -->
+                        <div class="top-posts-container">
+                            <h3>Top Videos</h3>
+                            <table class="top-posts-table">
+                                <thead>
+                                    <tr class="text-center header-tiktok">
+                                        <th class="text-center content-header">Contenido</th>
+                                        <th class="metric-header">Vistas</th>
+                                        <th class="metric-header">Likes</th>
+                                        <th class="metric-header">Comentarios</th>
+                                        <th class="metric-header">Compartidos</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="data['tiktok_data']['top_5_videos']" t-as="video">
+                                        <tr>
+                                            <td>
+                                                <div class="text-center post-content">
+                                                    <a style="color:black;" t-att-href="video['share_url']" target="_blank"><img t-att-src="video['cover_image_url']" class="post-image"/></a>
+                                                    <div class="post-message text-center">
+                                                        <a style="color:black;" t-att-href="video['share_url']" target="_blank"><t t-esc="(video.get('video_description') or 'Sin descripción')[:50]"/></a>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="metric-value">
+                                                <t t-esc="video['view_count']"/>
+                                            </td>
+                                            <td class="metric-value">
+                                                <t t-esc="video['like_count']"/>
+                                            </td>
+                                            <td class="metric-value">
+                                                <t t-esc="video['comment_count']"/>
+                                            </td>
+                                            <td class="metric-value">
+                                                <t t-esc="video['share_count']"/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="page-break"/>
+                </t>
+
                 <!-- #############################################################  Sección de Google Ads -->
                 <t t-if="data.get('google_ads_data')">
                     <div class="page">

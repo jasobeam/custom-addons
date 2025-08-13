@@ -8,7 +8,8 @@
             <field name="inherit_id" ref="project.view_project_kanban"/>
             <field name="arch" type="xml">
                 <xpath expr="//span[@name='partner_name']" position="after">
-                    <field name="project_type" widget="badge"/>
+                    <field class="mb-2" name="project_type" widget="badge"/>
+                    <field name="description" />
                     <group invisible="project_type != 'marketing'">
                         <p class="mb-1 mt-2">
                             <strong>Plan:
@@ -60,7 +61,18 @@
                             title="Actualizar campañas de Google Ads"
                             invisible="project_type != 'marketing'"/>
                     <button name="action_generate_report"
-                            string="Reporte de Marketing"
+                            string="Generate Marketing Report"
+                            type="object"
+                            class="btn-success" invisible="project_type != 'marketing'"/>
+                    <button name="fetch_google_campaigns"
+                            type="object"
+                            icon="fa-refresh"
+                            class="oe_inline"
+                            string=""
+                            title="Actualizar campañas de Google Ads"
+                            invisible="project_type != 'marketing'"/>
+                    <button name="action_generate_report"
+                            string="Generate TikTok Report"
                             type="object"
                             class="btn-success" invisible="project_type != 'marketing'"/>
                 </xpath>

@@ -28,7 +28,7 @@ class ResConfigSettings(models.TransientModel):
 
     linkedin_client_id = fields.Char("LinkedIn Client ID", config_parameter="linkedin.client_id")
     linkedin_client_secret = fields.Char("LinkedIn Client Secret", config_parameter="linkedin.client_secret")
-    linkedin_redirect_uri = fields.Char("Redirect URI", config_parameter="linkedin.redirect_uri")
+    linkedin_redirect_uri = fields.Char("Redirect URI", config_parameter="linkedin.redirect_uri", default="http://localhost:8018/linkedinauth/")
     linkedin_access_token = fields.Char(string="LinkedIn Access Token", config_parameter='linkedin.access_token')
     linkedin_token_expiry = fields.Char(string="Token Expiry", config_parameter='linkedin.token_expiry')
 

@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-:
 import datetime, time, pytz, requests
 
+import json
+
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 from urllib.parse import urlparse, parse_qs
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from google.ads.googleads.client import GoogleAdsClient
 
 API_VERSION = "v23.0"
+
 
 class GoogleAdCampaign(models.Model):
     _name = 'google.ad.campaigns'
@@ -22,6 +25,7 @@ class GoogleAdCampaign(models.Model):
     account_id = fields.Char('ID Cuenta Google Ads')
     project_id = fields.Many2one('project.project', string='Proyecto')
 
+
 class FacebookAdCampaigns(models.Model):
     _name = 'facebook.ad.campaigns'
     _description = 'Facebook Ad Campaigns'
@@ -34,9 +38,9 @@ class FacebookAdCampaigns(models.Model):
     account_id = fields.Char('ID Cuenta Publicitaria')
     project_id = fields.Many2one('project.project', string='Proyecto')  # Relación inversa
 
+
 class project_project(models.Model):
     _inherit = "project.project"
-
     partner_id = fields.Many2one('res.partner')
     partner_plan_descripcion = fields.Char(related="partner_id.plan_descripcion")
     partner_plan_post = fields.Integer(string="Posts", related="partner_id.plan_post")
@@ -51,6 +55,7 @@ class project_project(models.Model):
         ('marketing', 'Marketing'),
         ('web', 'Web'),
         ('branding', 'Branding'),
+        ('onboarding', 'On Boarding'),
         ('otro', 'Otro')
     ], string='Tipo de Proyecto', required=True, default='marketing')
     partner_page_access_token = fields.Char(related="partner_id.facebook_page_access_token")
@@ -235,16 +240,6 @@ class project_project(models.Model):
                 ('campaign_id', 'in', list(to_remove)),
             ]).unlink()
 
-    def _is_campaign_within_range(self, campaign, since_date, until_date):  # optimizado
-        """Valida que la campaña esté dentro del rango de fechas."""
-        start_str = campaign.get('start_time')
-        end_str = campaign.get('stop_time')
-        start_date = fields.Date.from_string(start_str) if start_str else None
-        end_date = fields.Date.from_string(end_str) if end_str else None
-
-        # Verificar superposición
-        return ((start_date is None or start_date <= until_date) and (end_date is None or end_date >= since_date))
-
     def fetch_google_campaigns(self):  # Optimizado
         # Obtener configuración técnica
         cfg = self.env['ir.config_parameter'].sudo()
@@ -318,7 +313,17 @@ class project_project(models.Model):
                 ('campaign_id', 'not in', api_ids),
             ]).unlink()
 
-    def get_facebook_data(self, since, until):#Optimizado
+    def _is_campaign_within_range(self, campaign, since_date, until_date):  # optimizado
+        """Valida que la campaña esté dentro del rango de fechas."""
+        start_str = campaign.get('start_time')
+        end_str = campaign.get('stop_time')
+        start_date = fields.Date.from_string(start_str) if start_str else None
+        end_date = fields.Date.from_string(end_str) if end_str else None
+
+        # Verificar superposición
+        return ((start_date is None or start_date <= until_date) and (end_date is None or end_date >= since_date))
+
+    def get_facebook_data(self, since, until):  # Optimizado
         BASE_URL = f"https://graph.facebook.com/{API_VERSION}/{self.partner_facebook_page_id}"
 
         metrics = [
@@ -350,7 +355,6 @@ class project_project(models.Model):
 
             except requests.exceptions.RequestException as e:
                 raise ValidationError(f"Error fetching insights data: {e}")
-
 
             all_data.extend(result.get('data', []))
             next_url = result.get('paging', {}).get('next')
@@ -496,7 +500,7 @@ class project_project(models.Model):
             'top_posts': top_5_posts,
         }
 
-    def get_instagram_data(self, since, until):#Optimizado
+    def get_instagram_data(self, since, until):  # Optimizado
         # 1) Métricas básicas
         original_since, original_until = int(since), int(until)
         account_metrics = requests.get(f"https://graph.facebook.com/{API_VERSION}/{self.partner_instagram_page_id}", params={
@@ -689,7 +693,7 @@ class project_project(models.Model):
                 continue
 
             url = f"https://graph.facebook.com/{API_VERSION}/{campaign.campaign_id}"
-            time_range_str = f'{{"since":"{self.date_start}","until":"{self.date}"}}'
+            time_range_str = f'{{"since":"{since}","until":"{until}"}}'
             params = {
                 'access_token': self.partner_page_access_token,
                 'fields': f'id,name,status,effective_status,insights.time_range({time_range_str}){{impressions,clicks,spend,reach,frequency,actions,cost_per_conversion,account_currency}}',
@@ -784,7 +788,7 @@ class project_project(models.Model):
             'campaigns': all_campaigns_data,
         }
 
-    def get_google_ads_data(self, since, until):#optimizado
+    def get_google_ads_data(self, since, until):  # optimizado
         """Obtiene datos de Google Ads para los proyectos especificados."""
         cfg = self.env['ir.config_parameter'].sudo()
         required_credentials = [
@@ -811,7 +815,9 @@ class project_project(models.Model):
                 if not account:
                     raise ValidationError(f"El proyecto {project.name} no tiene una cuenta de Google Ads asignada.")
 
-                since_date, until_date = project.date_start, project.date
+                since_date = datetime.fromtimestamp(since, tz=timezone.utc)
+                until_date = datetime.fromtimestamp(until, tz=timezone.utc)
+
                 if not since_date or not until_date:
                     raise ValidationError(f"Define las fechas de inicio y fin para el proyecto {project.name}.")
 
@@ -944,8 +950,100 @@ class project_project(models.Model):
 
         return results
 
-    def action_generate_report(self):#Optimizado
+    def get_tiktok_data(self, since, until):
+        # Validaciones
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.partner_tiktok_access_token}",
+                "Content-Type": "application/json"
+            }
+
+            # ▶️ 1. Obtener info de usuario
+            user_url = "https://open.tiktokapis.com/v2/user/info/"
+            user_fields = "video_count,profile_deep_link,username,display_name,avatar_url,follower_count,following_count,likes_count"
+            user_resp = requests.get(user_url, headers=headers, params={
+                "fields": user_fields
+            })
+            user_data = user_resp.json().get("data", {}).get("user", {})
+
+            if not user_data:
+                raise ValidationError("❌ No se pudo obtener información del usuario.")
+
+            # ▶️ 2. Obtener lista de videos
+            video_url = "https://open.tiktokapis.com/v2/video/list/"
+            all_videos = []
+            cursor = None
+            last_cursor = None
+            while True:
+                params = {
+                    "fields": "cover_image_url,id,title,create_time,share_url,video_description,like_count,comment_count,share_count,view_count"
+                }
+                payload = {
+                    "max_count": 20
+                }
+                if cursor:
+                    payload["cursor"] = cursor
+
+                resp = requests.post(video_url, headers=headers, params=params, json=payload)
+                if resp.status_code != 200:
+                    raise ValidationError(f"❌ Error HTTP {resp.status_code}: {resp.text}")
+
+                data = resp.json()
+                videos = data.get("data", {}).get("videos", [])
+
+                # Verificar condición de tiempo
+                page_filtered = []
+                for v in videos:
+                    video_time = v.get("create_time")
+
+                    if since <= video_time <= until:
+                        page_filtered.append(v)
+
+                if page_filtered:
+                    all_videos.extend(page_filtered)
+
+                has_more = data.get("data", {}).get("has_more", False)
+                cursor = data.get("data", {}).get("cursor", None)
+
+                # Romper si no hay más o el cursor no cambia
+                if not has_more or cursor == last_cursor:
+                    break
+
+                last_cursor = cursor
+
+            resumen_videos = {
+                "total_videos": len(all_videos),
+                "total_views": sum(v.get("view_count", 0) for v in all_videos),
+                "total_likes": sum(v.get("like_count", 0) for v in all_videos),
+                "total_comments": sum(v.get("comment_count", 0) for v in all_videos),
+                "total_shares": sum(v.get("share_count", 0) for v in all_videos),
+            }
+            top_5_videos = sorted(all_videos, key=lambda v: v.get("view_count", 0), reverse=True)[:5]
+
+            merged = {
+                "user": user_data,
+                "resumen": resumen_videos,
+                "top_5_videos": top_5_videos
+            }
+            return merged
+
+        except Exception as e:
+            return {
+                "type": "ir.actions.client",
+                "tag": "display_notification",
+                "params": {
+                    "title": "Error inesperado",
+                    "message": f"❌ {str(e)}",
+                    "type": "danger",
+                    "sticky": True,
+                },
+            }
+
+    def action_generate_report(self):  # Optimizado
         self.ensure_one()
+
+        MAX_DAYS = 30
+        SECONDS_IN_DAY = 86400
 
         data_sources = [
             {
@@ -978,6 +1076,12 @@ class project_project(models.Model):
                 'fetch_method': self.get_google_ads_data,
                 'data_key': 'google_ads_data',
             },
+            {
+                'name': 'TikTok',
+                'check': self.partner_tiktok_access_token,
+                'fetch_method': self.get_tiktok_data,
+                'data_key': 'tiktok_data',
+            },
         ]
 
         data = {
@@ -985,6 +1089,7 @@ class project_project(models.Model):
             'instagram_data': {},
             'meta_ads_data': {},
             'google_ads_data': {},
+            'tiktok_data': {},
             'report_period': {
                 'since': self.date_start.strftime('%Y-%m-%d'),
                 'until': self.date.strftime('%Y-%m-%d'),
@@ -997,27 +1102,59 @@ class project_project(models.Model):
         has_errors = False
 
         try:
-            if not (self.partner_facebook_page_id or self.partner_instagram_page_id) and not self.google_ad_campaigns_ids:
-                raise ValidationError("Debe configurar al menos una cuenta de Facebook o Instagram.")
+            if not (
+                    self.partner_facebook_page_id or self.partner_instagram_page_id) and not self.google_ad_campaigns_ids and not self.partner_tiktok_access_token:
+                raise ValidationError("Debe configurar al menos una Red Social para generar un reporte")
 
-            # Rango de fechas
-            since = int(time.mktime(self.date_start.timetuple()))
-            end_dt_utc = datetime.combine(self.date, datetime.max.time()).replace(tzinfo=pytz.UTC)
-            until = int(end_dt_utc.timestamp())
+            # Rango completo en fechas
+            since_dt = self.date_start
+            until_dt = self.date
+            delta_days = (until_dt - since_dt).days
+
+            # Dividir en bloques de 30 días
+            chunks = []
+            for i in range(0, delta_days + 1, MAX_DAYS):
+                chunk_start = since_dt + timedelta(days=i)
+                chunk_end = min(since_dt + timedelta(days=i + MAX_DAYS - 1), until_dt)
+                chunk_start_ts = int(datetime.combine(chunk_start, datetime.min.time()).replace(tzinfo=pytz.UTC).timestamp())
+                chunk_end_ts = int(datetime.combine(chunk_end, datetime.max.time()).replace(tzinfo=pytz.UTC).timestamp())
+
+                chunks.append((chunk_start_ts, chunk_end_ts))
 
             # Iterar sobre las fuentes de datos
             for source in data_sources:
                 if not source['check']:
                     continue
-
+                use_chunks = len(chunks) > 1
                 try:
-                    # Obtener datos del método correspondiente
-                    fetched_data = source['fetch_method'](since, until)
-                    if fetched_data:
-                        data[source['data_key']] = fetched_data
-                        messages.append(f"✅ {source['name']}: datos obtenidos.")
+                    if use_chunks:
+                        chunk_results = []
+                        for start_ts, end_ts in chunks:
+                            fetched_data = source['fetch_method'](start_ts, end_ts)
+                            if fetched_data:
+                                chunk_results.append(fetched_data)
+
+                        if chunk_results:
+                            if source['data_key'] == 'google_ads_data':
+                                data[source['data_key']] = merge_final_data(chunk_results)
+                            else:
+                                merged_data = {}
+                                for chunk_data in chunk_results:
+                                    merged_data = merge_final_data(merged_data, chunk_data)
+                                data[source['data_key']] = merged_data
+
+                            messages.append(f"✅ {source['name']}: datos obtenidos en chunks.")
+                        else:
+                            messages.append(f"⚠️ {source['name']}: sin datos en los bloques.")
                     else:
-                        messages.append(f"⚠️ {source['name']}: sin datos en el período.")
+                        # Rango corto: llamada directa
+                        start_ts, end_ts = chunks[0]
+                        fetched_data = source['fetch_method'](start_ts, end_ts)
+                        if fetched_data:
+                            data[source['data_key']] = fetched_data
+                            messages.append(f"✅ {source['name']}: datos obtenidos.")
+                        else:
+                            messages.append(f"⚠️ {source['name']}: sin datos en el período.")
                 except Exception as e:
                     has_errors = True
                     messages.append(f"❌ {source['name']}: error - {str(e)}")
@@ -1034,16 +1171,6 @@ class project_project(models.Model):
                         'sticky': True,
                     },
                 }
-
-            # Guardar datos en la BD
-            # self.env['gl.social.reports'].create({
-            #     'partner_id': self.partner_id.id,
-            #     'date_start': self.date_start,
-            #     'date_end': self.date,
-            #     'report_generated': not has_errors,
-            #     'data_json': data,
-            # })
-
             return self.env.ref('gl_geniolibre.gl_print_marketing_report').report_action(self, data={
                 'data': data
             })
@@ -1060,7 +1187,6 @@ class project_project(models.Model):
                 },
             }
 
-
 def action_print_report(self):
     data = {
         ...
@@ -1074,3 +1200,93 @@ def action_print_report(self):
         },  # Pasar datos en clave 'data'
         'config': False
     }
+
+def merge_final_data(data_list):
+        merged = {
+            'summary': {
+                'total_campaigns': 0,
+                'account_currency': 'USD',
+                'impressions': 0,
+                'clicks': 0,
+                'spend': 0.0,
+                'ctr': 0.0,
+                'cpc': 0.0,
+                'conversions': 0.0,
+                'cost_per_conversion': 0.0,
+            },
+            'campaigns': [],
+            'keywords_summary': []
+        }
+
+        # Diccionarios temporales para evitar duplicados
+        campaign_map = {}
+        keyword_map = {}
+
+        total_ctr, total_cpc, total_cost_per_conversion = 0.0, 0.0, 0.0
+        ctr_count, cpc_count, cost_conv_count = 0, 0, 0
+
+        for data in data_list:
+            summary = data.get('summary', {})
+            merged['summary']['total_campaigns'] += summary.get('total_campaigns', 0)
+            merged['summary']['impressions'] += summary.get('impressions', 0)
+            merged['summary']['clicks'] += summary.get('clicks', 0)
+            merged['summary']['spend'] += summary.get('spend', 0.0)
+            merged['summary']['conversions'] += summary.get('conversions', 0.0)
+
+            if summary.get('ctr', 0):
+                total_ctr += summary['ctr']
+                ctr_count += 1
+            if summary.get('cpc', 0):
+                total_cpc += summary['cpc']
+                cpc_count += 1
+            if summary.get('cost_per_conversion', 0):
+                total_cost_per_conversion += summary['cost_per_conversion']
+                cost_conv_count += 1
+
+            # Campaigns
+            for camp in data.get('campaigns', []):
+                cid = camp['id']
+                if cid in campaign_map:
+                    for k in [
+                        'impressions',
+                        'clicks',
+                        'cost',
+                        'all_conversions'
+                    ]:
+                        campaign_map[cid][k] += camp.get(k, 0)
+                else:
+                    campaign_map[cid] = camp.copy()
+
+            # Keywords
+            for kw in data.get('keywords_summary', []):
+                text = kw['keyword']
+                if text in keyword_map:
+                    for k in [
+                        'clicks',
+                        'impressions',
+                        'conversions',
+                        'cost'
+                    ]:
+                        keyword_map[text][k] += kw.get(k, 0)
+                else:
+                    keyword_map[text] = kw.copy()
+
+        # Recalcular promedios
+        merged['summary']['ctr'] = round(total_ctr / ctr_count, 2) if ctr_count else 0.0
+        merged['summary']['cpc'] = round(total_cpc / cpc_count, 2) if cpc_count else 0.0
+        merged['summary'][
+            'cost_per_conversion'] = round(total_cost_per_conversion / cost_conv_count, 2) if cost_conv_count else 0.0
+        merged['summary']['spend'] = round(merged['summary']['spend'], 2)
+
+        # Finalizar listas
+        merged['campaigns'] = list(campaign_map.values())
+
+        # Calcular cost_per_conversion individualmente
+        for kw in keyword_map.values():
+            conversions = kw.get('conversions', 0)
+            cost = kw.get('cost', 0.0)
+            kw['cost_per_conversion'] = round(cost / conversions, 2) if conversions else 0.0
+
+        merged['keywords_summary'] = list(keyword_map.values())
+
+        return merged
