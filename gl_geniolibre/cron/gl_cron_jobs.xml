@@ -75,7 +75,7 @@ else:
         </field>
         <field name="interval_number">1</field>
         <field name="interval_type">days</field>
-        <field name="active" eval="false"/>
+        <field name="active">True</field>
     </record>
     <record id="ir_cron_check_ins_processing" model="ir.cron">
         <field name="name">GL Revisar publicaciones en proceso</field>
