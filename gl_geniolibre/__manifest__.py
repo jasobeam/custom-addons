@@ -30,6 +30,8 @@
         'views/gl_res_partner.xml',
         'views/gl_project_task.xml',
         'views/gl_project_project.xml',
+        'views/gl_project_portal.xml',
+        'views/gl_project_portal_calendar.xml',
         'views/gl_social_monthly_metrics.xml',
 
         'report/gl_print_task.xml',
@@ -43,10 +45,18 @@
             'gl_geniolibre/static/src/js/gl_many2many_attachment_preview.js',
             'gl_geniolibre/static/src/xml/gl_many2many_attachment_preview_template.xml',
         ],
-        'web.report_assets_common': [
-            '/gl_geniolibre/static/src/scss/custom_font.css',
-            '/gl_geniolibre/static/src/scss/custom_css.css',
+        "web.report_assets_common": [
+            'gl_geniolibre/static/src/scss/custom_font.css',
+            'gl_geniolibre/static/src/scss/custom_css.css',
         ],
+        'web.assets_frontend': [
+            # Usar la versión que expone FullCalendar globalmente
+            'https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css',
+            'https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js',  # ✅ Esta versión sí expone FullCalendar global
+            'gl_geniolibre/static/src/js/calendar_init.js',
+        ],
+
+
     },
     # only loaded in demonstration mode
     'demo': [
