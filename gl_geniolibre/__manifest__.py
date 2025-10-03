@@ -33,6 +33,7 @@
         'views/gl_project_portal.xml',
         'views/gl_project_portal_calendar.xml',
         'views/gl_social_monthly_metrics.xml',
+        # 'views/gl_contenido_flujo.xml',
 
         'report/gl_print_task.xml',
         'report/gl_print_marketing_report.xml',
@@ -43,6 +44,7 @@
     "assets": {
         "web.assets_backend": [
             'gl_geniolibre/static/src/js/gl_many2many_attachment_preview.js',
+            'gl_geniolibre/static/src/js/clipboard.js',
             'gl_geniolibre/static/src/xml/gl_many2many_attachment_preview_template.xml',
         ],
         "web.report_assets_common": [

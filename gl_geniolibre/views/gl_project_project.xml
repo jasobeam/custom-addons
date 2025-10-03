@@ -43,38 +43,28 @@
                     <field name="project_type"/>
                     <field name="facebook_ad_campaigns_ids" widget="many2many_tags"
                            invisible="project_type != 'marketing'"/>
-                    <button name="fetch_facebook_campaigns"
-                            type="object"
-                            icon="fa-refresh"
-                            class="oe_inline"
-                            string=""
-                            title="Actualizar campañas de facebook"
-                            invisible="project_type != 'marketing'"/>
+
                     <field name="google_ad_campaigns_ids" widget="many2many_tags"
                            invisible="project_type != 'marketing'"/>
 
-                    <button name="fetch_google_campaigns"
-                            type="object"
+
+                    <field name="red_social_report_ids" widget="many2many_tags" placeholder="Selecciona las redes sociales..." />
+
+                    <button name="fetch_campaigns"
+                            string="Campañas"
                             icon="fa-refresh"
-                            class="oe_inline"
-                            string=""
-                            title="Actualizar campañas de Google Ads"
-                            invisible="project_type != 'marketing'"/>
+                            type="object"
+                            class="btn-secondary" invisible="project_type != 'marketing'"/>
                     <button name="action_generate_report"
-                            string="Generate Marketing Report"
+                            string="Generar Reporte de Marketing"
                             type="object"
+                            icon="fa-line-chart"
                             class="btn-success" invisible="project_type != 'marketing'"/>
-                    <button name="fetch_google_campaigns"
+                    <button name="action_generate_iareport"
+                            string="Json para IA"
                             type="object"
-                            icon="fa-refresh"
-                            class="oe_inline"
-                            string=""
-                            title="Actualizar campañas de Google Ads"
-                            invisible="project_type != 'marketing'"/>
-                    <button name="action_generate_report"
-                            string="Generate TikTok Report"
-                            type="object"
-                            class="btn-success" invisible="project_type != 'marketing'"/>
+                            icon="fa-android"
+                            class="btn-secondary" invisible="project_type != 'marketing'"/>
                 </xpath>
             </field>
         </record>
