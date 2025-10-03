@@ -1,6 +1,7 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_gl_credentials,access.gl.credentials,model_gl_credentials,base.group_user,1,1,1,1
 access_red_social,access.red.social,model_red_social,base.group_user,1,1,1,1
+access_red_social_reporte,access.red.social.reporte,model_red_social_reporte,base.group_user,1,1,1,1
 access_gl_social_reports,access.gl.social.reports,model_gl_social_reports,base.group_user,1,1,1,1
 access_facebook_ad_account,access.facebook.ad.account,model_facebook_ad_account,base.group_user,1,1,1,1
 access_facebook_ad_campaigns,access.facebook.ad.campaigns,model_facebook_ad_campaigns,base.group_user,1,1,1,1
