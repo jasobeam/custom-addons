@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_sale_order_form_editable_date_order_sent_cancel" model="ir.ui.view">
+        <field name="name">sale.order.form.date_order.only.sent.cancel</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='order_details']" position="replace">
+                <group name="order_details">
+                    <!-- Un solo campo de fecha editable -->
+                    <field name="date_order" readonly="0"/>
+
+                    <field name="validity_date" invisible="state == 'sale'" readonly="state in ['cancel', 'sale']"/>
+
+                    <field name="has_active_pricelist" invisible="1"/>
+                    <field name="show_update_pricelist" invisible="1"/>
+
+                    <label for="pricelist_id" groups="product.group_product_pricelist" invisible="not has_active_pricelist"/>
+                    <div groups="product.group_product_pricelist" class="o_row" invisible="not has_active_pricelist">
+                        <field name="pricelist_id" options="{'no_open':True,'no_create': True}" readonly="state in ['cancel', 'sale']"/>
+                        <button name="action_update_prices" type="object" string=" Update Prices"
+                                help="Recompute all prices based on this pricelist"
+                                class="btn-link mb-1 px-0" icon="fa-refresh"
+                                confirm="This will update the unit price of all products based on the new pricelist."
+                                invisible="not show_update_pricelist or state in ['sale', 'cancel']"/>
+                    </div>
+
+                    <field name="country_code" invisible="1"/>
+                    <field name="company_id" invisible="1"/>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="pricelist_id" invisible="1" readonly="state in ['cancel', 'sale']" groups="!product.group_product_pricelist"/>
+                    <field name="tax_country_id" invisible="1"/>
+                    <field name="tax_calculation_rounding_method" invisible="1"/>
+                    <field name="payment_term_id" placeholder="Immediate" options="{'no_open': True, 'no_create': True}"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
