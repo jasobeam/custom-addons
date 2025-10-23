@@ -2,6 +2,8 @@
 import random, re, requests, base64, boto3, logging
 
 from io import BytesIO
+
+import botocore
 from odoo.tools import html2plaintext
 from odoo import models, fields, api
 from datetime import datetime
@@ -965,9 +967,16 @@ def upload_files_to_s3(files, aws_api, aws_secret):
     if not aws_access_key_id or not aws_secret_access_key:
         raise ValidationError("No se configuró correctamente el servicio de AWS.")
 
+    # Crear cliente con timeout seguro
     try:
         _logger.info("Iniciando conexión con AWS S3...")
-        s3_client = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=region_name, )
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=region_name,
+            config=botocore.config.Config(connect_timeout=5, read_timeout=15),
+        )
         _logger.info("Cliente AWS S3 creado correctamente.")
     except Exception as e:
         _logger.exception("Error al crear el cliente AWS S3")
@@ -982,15 +991,9 @@ def upload_files_to_s3(files, aws_api, aws_secret):
     elif isinstance(files, (tuple, list)):
         files = list(files)
     else:
-        files = [
-            files
-        ]
+        files = [files]
 
-    allowed_extensions = {
-        'jpg',
-        'jpeg',
-        'mp4'
-    }
+    allowed_extensions = {'jpg', 'jpeg', 'mp4'}
     uploaded_urls = []
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1012,7 +1015,9 @@ def upload_files_to_s3(files, aws_api, aws_secret):
 
             file_ext = file_name_raw.split('.')[-1].lower()
             if file_ext not in allowed_extensions:
-                raise ValidationError(f"Tipo de archivo '{file_ext}' no permitido. Solo JPG, JPEG o MP4.")
+                raise ValidationError(
+                    f"Tipo de archivo '{file_ext}' no permitido. Solo JPG, JPEG o MP4."
+                )
 
             file_name = f"media_{timestamp}_{random_digits}-{idx}.{file_ext}"
             _logger.info(f"Preparando archivo {file_name_raw} para subida ({file_ext})...")
@@ -1021,12 +1026,12 @@ def upload_files_to_s3(files, aws_api, aws_secret):
             file_bytes = base64.b64decode(file_data)
             _logger.info(f"Subiendo {file_name} ({len(file_bytes)} bytes) a S3...")
 
-            s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=file_bytes, ACL='public-read',
-                # opcional: asegura acceso público
-                ContentType='image/jpeg' if file_ext in [
-                    'jpg',
-                    'jpeg'
-                ] else 'video/mp4', )
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=file_name,
+                Body=file_bytes,
+                ContentType='image/jpeg' if file_ext in ['jpg', 'jpeg'] else 'video/mp4',
+            )
 
             file_url = f"https://{bucket_name}.s3.{region_name}.amazonaws.com/{file_name}"
             uploaded_urls.append(file_url)
