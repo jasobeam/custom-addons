@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-:
 import urllib.parse
+
+import boto3
+import requests
+from odoo.exceptions import ValidationError
 from odoo import fields, models, api
 
 
@@ -31,6 +35,57 @@ class ResConfigSettings(models.TransientModel):
     linkedin_redirect_uri = fields.Char("Redirect URI", config_parameter="linkedin.redirect_uri", default="http://localhost:8018/linkedinauth/")
     linkedin_access_token = fields.Char(string="LinkedIn Access Token", config_parameter='linkedin.access_token')
     linkedin_token_expiry = fields.Char(string="Token Expiry", config_parameter='linkedin.token_expiry')
+
+    chatgpt_api_key = fields.Char("ChatGPT API Key", config_parameter="chatgpt.api_key")
+    chatgpt_base_url = fields.Char("ChatGPT Base URL", config_parameter="chatgpt.base_url", default="https://api.openai.com/v1")
+    chatgpt_model = fields.Char("ChatGPT Modelo", config_parameter="chatgpt.model", default="gpt-4.1-mini")
+
+    def action_test_aws_connection(self):
+        """Probar conexión con AWS S3 (muestra popup visual en Odoo)"""
+        self.ensure_one()
+
+        access_key = self.aws_access_key or self.env['ir.config_parameter'].sudo().get_param('gl_aws.api_key')
+        secret_key = self.aws_secret or self.env['ir.config_parameter'].sudo().get_param('gl_aws.secret')
+
+        if not access_key or not secret_key:
+            raise ValidationError("Debes configurar las claves de AWS antes de probar la conexión.")
+
+        try:
+            print("Probando conexión con AWS S3...")
+            s3_client = boto3.client('s3', aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name='us-east-2', )
+
+            response = s3_client.list_buckets()
+            bucket_names = [b['Name'] for b in response.get('Buckets', [])]
+            bucket_text = ', '.join(bucket_names) or 'ninguno encontrado'
+
+            msg = f"✅ Conexión exitosa con AWS S3.\nBuckets disponibles: {bucket_text}"
+            print(msg)
+
+            # Mostrar popup visual (bus message)
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Conexión Exitosa',
+                    'message': msg,
+                    'type': 'success',
+                    'sticky': False,
+                }
+            }
+
+        except Exception as e:
+            print("Error al conectar con AWS S3")
+            error_msg = f"No se pudo conectar con AWS S3:\n{str(e)}"
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Error en la Conexión',
+                    'message': error_msg,
+                    'type': 'danger',
+                    'sticky': True,
+                }
+            }
 
     def conectar_facebook(self):
         scopes_list = [

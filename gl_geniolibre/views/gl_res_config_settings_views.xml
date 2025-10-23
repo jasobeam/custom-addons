@@ -34,6 +34,15 @@
                             <field name="aws_access_key" title="API Key"/>
                             <label class="col-lg-3 mt-3" string="Clave de acceso secreta" for="aws_secret"/>
                             <field name="aws_secret" title="API Key"/>
+                            <div class="content-group">
+                                <div class="mt8">
+                                    <button name="action_test_aws_connection"
+                                            string="Probar Conexión"
+                                            type="object"
+                                            class="btn btn-primary mt8"/>
+                                </div>
+                            </div>
+
                         </div>
                     </block>
                     <block title="TikTok">
@@ -104,6 +113,20 @@
                                 </div>
                             </div>
                         </div>
+                    </block>
+                    <block title="ChatGPT / OpenAI">
+                        <div class="col-xs-12 row o_settings_container">
+                            <label class="col-lg-3" string="API Key" for="chatgpt_api_key"/>
+                            <field name="chatgpt_api_key" password="True" placeholder="sk-..." title="API Key"/>
+
+                            <label class="col-lg-3 mt-3" string="Base URL" for="chatgpt_base_url"/>
+                            <field name="chatgpt_base_url" placeholder="https://api.openai.com/v1" title="Base URL"/>
+
+                            <label class="col-lg-3 mt-3" string="Modelo" for="chatgpt_model"/>
+                            <field name="chatgpt_model" placeholder="gpt-4.1-mini" title="Modelo"/>
+                        </div>
+
+
                     </block>
                 </app>
             </xpath>
