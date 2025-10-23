@@ -6,8 +6,11 @@ from odoo.tools import html2plaintext
 from odoo import models, fields, api
 from datetime import datetime
 from odoo.exceptions import ValidationError
-import mimetypes
 
+from odoo import http
+from odoo.http import request
+
+import mimetypes
 
 _logger = logging.getLogger(__name__)
 
@@ -31,6 +34,7 @@ class red_social(models.Model):
             'Instagram',
             'LinkedIn',
             'TikTok',
+
         ]
 
         # Buscar nombres ya existentes (case insensitive por si acaso)
@@ -87,6 +91,12 @@ class project_task(models.Model):
     tiktok_post_url = fields.Char(string="TikTok URL")
     linkedin_post_id = fields.Char(string="LinkedIn Post ID")
     linkedin_post_url = fields.Char(string="LinkedIn URL")
+
+    def unlink(self):
+        for task in self:
+            if task.tag_ids.filtered(lambda tag: tag.name.lower() == 'plantilla'):
+                raise ValidationError('No puedes eliminar tareas con la etiqueta "Plantilla".')
+        return super(project_task, self).unlink()
 
     def copy(self, default=None):
         self.ensure_one()
@@ -165,7 +175,7 @@ class project_task(models.Model):
 
         # Eliminar la siguiente línea: Odoo manejará el commit de la transacción.
         self.post_estado = "Programado"  # Opcional: Si este metodo se llama desde un botón y quieres dar feedback  # podrías devolver una acción de notificación, pero para la lógica del modelo  # simplemente cambiar el estado es suficiente.
-
+        # Mensaje simple
     def cancelar_post(self):
         self.ensure_one()  # Asegura que solo hay un registro seleccionado
         self.post_estado = "Pendiente"
@@ -322,7 +332,6 @@ class project_task(models.Model):
 
     def publicar_post(self):
         BASE_URL = f'https://graph.facebook.com/{API_VERSION}'
-        _logger.info("Operación Iniciada")
 
         def remove_duplicate_links(text):
             seen_urls = set()
@@ -614,7 +623,6 @@ class project_task(models.Model):
                         chunk_resp = requests.get(media_urls[0], headers={
                             "Range": range_header
                         }, stream=True)
-                        print("chunk_resp", chunk_resp)
 
                         chunk_resp.raise_for_status()
                         chunk_data = chunk_resp.content  # Leer contenido completo
@@ -626,7 +634,6 @@ class project_task(models.Model):
 
                         # Subir a LinkedIn
                         upload_resp = session.put(upload_url, headers=put_headers, data=chunk_data, timeout=30)
-                        print("Subir a LinkedIn", upload_resp)
                         upload_resp.raise_for_status()
 
                         etag = upload_resp.headers.get("ETag")
@@ -641,7 +648,7 @@ class project_task(models.Model):
                         session.put(thumbnail_url, headers={
                             "Content-Type": "image/jpeg"
                         },  # fijo, siempre JPG
-                            data=thumb_bytes, timeout=15, ).raise_for_status()
+                                    data=thumb_bytes, timeout=15, ).raise_for_status()
 
                     # 1‑C Finalizar la subida
                     finalize_payload = {
@@ -652,7 +659,6 @@ class project_task(models.Model):
                         }
                     }
                     finalize_resp = session.post("https://api.linkedin.com/rest/videos?action=finalizeUpload", json=finalize_payload)
-                    print("finalize_resp", finalize_resp)
                     finalize_resp.raise_for_status()
 
                     # Estado "procesando"
@@ -784,7 +790,6 @@ class project_task(models.Model):
         if not self.red_social_ids:
             raise ValidationError("Debe seleccionar al menos una red social")
 
-        _logger.info("Redes Sociales - OK")
         try:
             # Configuración inicial
             parametros = self.env['ir.config_parameter'].sudo()
@@ -799,7 +804,6 @@ class project_task(models.Model):
             formatted_description = remove_duplicate_links(formatted_description).rstrip()
             combined_text = f"{formatted_description}\n\n{plain_hashtags}"
 
-            _logger.info("Configuración inicial - OK")
             # Validación de credenciales por red social
             credential_errors = []
             if 'Facebook' in self.red_social_ids.mapped('name') and not self.partner_facebook_page_id:
@@ -852,7 +856,6 @@ class project_task(models.Model):
 
                         success_messages.append("Facebook: Publicación exitosa")
                         published_on.append("Facebook")
-                        _logger.info("Facebook - OK")
                     else:
                         errors.append("Facebook: No se recibió respuesta del servidor")
                 except Exception as e:
@@ -877,7 +880,6 @@ class project_task(models.Model):
                         })
                         success_messages.append("Instagram: Publicación exitosa")
                         published_on.append("Instagram")
-                        _logger.info("Instagram - OK")
                 except Exception as e:
                     errors.append(f"Instagram: {str(e)}")
 
@@ -891,7 +893,6 @@ class project_task(models.Model):
                         })
                         success_messages.append("TikTok: Publicación exitosa")
                         published_on.append("TikTok")
-                        _logger.info("TikTok - K")
                     else:
                         errors.append("TikTok: No se recibió respuesta del servidor")
                 except Exception as e:
@@ -900,9 +901,7 @@ class project_task(models.Model):
             # LinkedIn
             if 'LinkedIn' in self.red_social_ids.mapped('name'):
                 try:
-                    print("Inicio Publicacion Linkedin")
                     linkedin_response = publish_on_linkedin(media_urls)
-                    print(linkedin_response)
                     if linkedin_response:
                         self.write({
                             'linkedin_post_id': linkedin_response["post_id"],
@@ -910,7 +909,6 @@ class project_task(models.Model):
                         })
                         success_messages.append("LinkedIn: Publicación exitosa")
                         published_on.append("LinkedIn")
-                        _logger.info("LinkedIn - OK")
                     else:
                         errors.append("LinkedIn: No se recibió respuesta del servidor")
                 except Exception as e:
@@ -956,33 +954,34 @@ class project_task(models.Model):
 
 
 def upload_files_to_s3(files, aws_api, aws_secret):
+    """Sube archivos (imágenes o videos) a AWS S3 y devuelve sus URLs públicas."""
     aws_access_key_id = aws_api
     aws_secret_access_key = aws_secret
     bucket_name = 'odoo-geniolibre'
     region_name = 'us-east-2'
-    _logger.info("AWS S3 configuracion inicial")
+
+    _logger.info("AWS S3 configuración inicial")
+
     if not aws_access_key_id or not aws_secret_access_key:
         raise ValidationError("No se configuró correctamente el servicio de AWS.")
 
-    s3_client = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=region_name)
+    try:
+        _logger.info("Iniciando conexión con AWS S3...")
+        s3_client = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=region_name, )
+        _logger.info("Cliente AWS S3 creado correctamente.")
+    except Exception as e:
+        _logger.exception("Error al crear el cliente AWS S3")
+        raise ValidationError(f"Error al crear el cliente AWS S3: {e}")
 
     if not files:
         raise ValidationError("No se encontraron archivos adjuntos o imágenes.")
 
-    # Normalizar archivos: convertir a lista si es recordset o cualquier otra cosa iterable
-    if hasattr(files, 'ids'):  # Odoo recordset
-        files = list(files)
-    elif isinstance(files, (tuple, list)):
-        # Asegurar que sea lista, no una tupla inmutable
-        files = list(files)
-    else:
-        files = [
-            files
-        ]
-
+    # Normalizar a lista
     if hasattr(files, 'ids'):
         files = list(files)
-    elif not isinstance(files, list):
+    elif isinstance(files, (tuple, list)):
+        files = list(files)
+    else:
         files = [
             files
         ]
@@ -994,35 +993,49 @@ def upload_files_to_s3(files, aws_api, aws_secret):
     }
     uploaded_urls = []
 
-    # Identificadores comunes
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     random_digits = ''.join(random.choices('0123456789', k=5))
 
     for idx, item in enumerate(files, start=1):
-        if hasattr(item, 'datas') and hasattr(item, 'name'):  # ir.attachment
-            file_name_raw = item.name
-            file_data = item.datas
-        elif isinstance(item, (tuple, list)) and len(item) == 2:  # (name, data)
-            file_name_raw = item[0]
-            file_data = item[1]
-        elif isinstance(item, str):  # base64 string
-            file_name_raw = f"upload_{timestamp}_{random_digits}-{idx}.jpg"
-            file_data = item
-        else:
-            raise ValidationError("Formato de archivo no soportado o inválido.")
-
-        file_ext = file_name_raw.split('.')[-1].lower()
-        if file_ext not in allowed_extensions:
-            raise ValidationError(f"Tipo de archivo '{file_ext}' no permitido. Solo JPG, JPEG o MP4.")
-
-        file_name = f"media_{timestamp}_{random_digits}-{idx}.{file_ext}"
-
         try:
-            s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=base64.b64decode(file_data), )
-        except Exception as e:
-            raise ValidationError(f"Error al subir archivo {file_name_raw} a S3: {str(e)}")
+            # Detectar tipo de objeto
+            if hasattr(item, 'datas') and hasattr(item, 'name'):  # ir.attachment
+                file_name_raw = item.name
+                file_data = item.datas
+            elif isinstance(item, (tuple, list)) and len(item) == 2:  # (name, data)
+                file_name_raw, file_data = item
+            elif isinstance(item, str):  # base64 string
+                file_name_raw = f"upload_{timestamp}_{random_digits}-{idx}.jpg"
+                file_data = item
+            else:
+                raise ValidationError("Formato de archivo no soportado o inválido.")
 
-        file_url = f"https://{bucket_name}.s3.{region_name}.amazonaws.com/{file_name}"
-        uploaded_urls.append(file_url)
-    _logger.info("Archivos subidos a AWS")
+            file_ext = file_name_raw.split('.')[-1].lower()
+            if file_ext not in allowed_extensions:
+                raise ValidationError(f"Tipo de archivo '{file_ext}' no permitido. Solo JPG, JPEG o MP4.")
+
+            file_name = f"media_{timestamp}_{random_digits}-{idx}.{file_ext}"
+            _logger.info(f"Preparando archivo {file_name_raw} para subida ({file_ext})...")
+
+            # Decodificar y subir
+            file_bytes = base64.b64decode(file_data)
+            _logger.info(f"Subiendo {file_name} ({len(file_bytes)} bytes) a S3...")
+
+            s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=file_bytes, ACL='public-read',
+                # opcional: asegura acceso público
+                ContentType='image/jpeg' if file_ext in [
+                    'jpg',
+                    'jpeg'
+                ] else 'video/mp4', )
+
+            file_url = f"https://{bucket_name}.s3.{region_name}.amazonaws.com/{file_name}"
+            uploaded_urls.append(file_url)
+
+            _logger.info(f"Archivo subido correctamente: {file_url}")
+
+        except Exception as e:
+            _logger.exception(f"Error al subir {file_name_raw} a S3")
+            raise ValidationError(f"Error al subir archivo {file_name_raw}: {str(e)}")
+
+    _logger.info(f"Todos los archivos subidos correctamente. Total: {len(uploaded_urls)}")
     return uploaded_urls
