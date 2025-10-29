@@ -1,0 +1,269 @@
+<odoo>
+
+    <!-- ✅ Vista de búsqueda corregida -->
+    <record id="view_gl_contenido_flujo_search" model="ir.ui.view">
+        <field name="name">gl.contenido.flujo.search</field>
+        <field name="model">gl.contenido.flujo</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Flujos de Contenido">
+
+                <!-- 🔎 Campos principales -->
+                <field name="name" string="Nombre del Flujo"/>
+                <field name="partner_id" string="Cliente"/>
+                <field name="project_id" string="Proyecto"/>
+
+                <!-- 🔹 Filtros rápidos -->
+                <filter name="filter_ideas"
+                        string="En Ideas"
+                        domain="[('etapa','=','ideas')]"
+                        help="Mostrar solo flujos en etapa de creación de ideas"/>
+                <filter name="filter_reunion"
+                        string="Reunión con Cliente"
+                        domain="[('etapa','=','reunion')]"/>
+                <filter name="filter_refinar"
+                        string="Refinamiento"
+                        domain="[('etapa','=','refinar')]"/>
+                <filter name="filter_publicaciones"
+                        string="Publicaciones"
+                        domain="[('etapa','=','publicaciones')]"/>
+
+                <!-- 🔹 Agrupar por -->
+                <group string="Agrupar por">
+                    <filter name="group_etapa"
+                            string="Etapa"
+                            context="{'group_by': 'etapa'}"/>
+                    <filter name="group_partner"
+                            string="Cliente"
+                            context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_project"
+                            string="Proyecto"
+                            context="{'group_by': 'project_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ✅ Acción principal -->
+    <record id="action_gl_contenido_flujo" model="ir.actions.act_window">
+        <field name="name">Flujo de Contenido</field>
+        <field name="res_model">gl.contenido.flujo</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_gl_contenido_flujo_search"/>
+    </record>
+
+    <!-- Vista Kanban -->
+    <record id="view_gl_contenido_flujo_kanban" model="ir.ui.view">
+        <field name="name">gl.contenido.flujo.kanban</field>
+        <field name="model">gl.contenido.flujo</field>
+        <field name="arch" type="xml">
+
+            <kanban default_group_by="etapa"
+                    class="o_kanban_small_column"
+                    group_disable_drag="true"
+                    disable_drag="true">
+                <field name="partner_id"/>
+                <field name="etapa"/>
+                <field name="notas"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click o_kanban_card">
+                            <!-- 🔹 Título principal destacado -->
+                            <div class="o_kanban_primary_left">
+                                <strong class="o_kanban_record_title" style="font-size:16px; color:#2C3E50;">
+                                    <field name="name"/>
+                                </strong>
+                                <div class="text-muted" style="font-size:13px;">
+                                    <field name="partner_id"/>
+                                </div>
+                            </div>
+
+                            <!-- 🔹 Línea inferior informativa -->
+                            <div class="o_kanban_secondary_bottom mt8" style="font-size:12px;">
+                                <span>
+                                    <b>Proyecto:</b>
+                                    <field name="project_id" placeholder="—"/>
+                                </span>
+                                <br/>
+                                <span>
+                                    <b>Orientación:</b>
+                                    <field name="orientacion_comunicacion" placeholder="—"/>
+                                </span>
+                                <br/>
+                                <span>
+                                    <b>Tono:</b>
+                                    <field name="tono_comunicacion" placeholder="—"/>
+                                </span>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Vista formulario -->
+    <record id="view_gl_contenido_flujo_form" model="ir.ui.view">
+        <field name="name">gl.contenido.flujo.form</field>
+        <field name="model">gl.contenido.flujo</field>
+        <field name="arch" type="xml">
+            <form string="Flujo del Generador de Contenido">
+                <header>
+                    <field name="etapa" widget="statusbar"
+                           statusbar_visible="ideas,reunion,refinar,publicaciones"/>
+
+                    <!-- Botones principales -->
+                    <div class="oe_button_box">
+                        <button name="action_previous_stage"
+                                type="object"
+                                string="Volver"
+                                class="btn-secondary"
+                                invisible="etapa == 'ideas'"/>
+                        <button name="action_crear_ideas"
+                                type="object"
+                                string="Crear Ideas"
+                                class="btn-primary"
+                                invisible="etapa != 'ideas'"/>
+                        <button name="action_refinar_propuestas"
+                                type="object"
+                                string="Refinar Propuestas"
+                                class="btn-primary"
+                                invisible="etapa != 'reunion'"/>
+                        <button name="action_generar_tareas"
+                                type="object"
+                                string="Generar Tareas"
+                                class="btn-primary"
+                                invisible="etapa != 'refinar'"/>
+                    </div>
+                </header>
+
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" class="o_form_label"/>
+                        <h1>
+                            <field name="name" class="o_field_title"/>
+                        </h1>
+                    </div>
+                    <!-- 🔹 Grupo principal con 2 columnas -->
+                    <group col="2">
+                        <!-- Columna izquierda -->
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="project_id"/>
+                            <field name="etapa" invisible="1"/>
+                            <field name="redes_ids" widget="many2many_tags"/>
+                        </group>
+
+                        <!-- Columna derecha -->
+                        <group>
+                            <field name="date_start"
+                                   string="Período"
+                                   widget="daterange"
+                                   options="{'end_date_field': 'date', 'always_range': 1}"
+                                   required="date_start or date"/>
+                            <field name="date" invisible="1" required="date_start"/>
+                            <field name="plan_cliente" readonly="1"/>
+                            <field name="plan_post" readonly="1"/>
+                            <field name="plan_historia" readonly="1"/>
+                            <field name="plan_reel" readonly="1"/>
+                        </group>
+                    </group>
+                    <!-- 🟩 Etapa: Ideas -->
+                    <notebook invisible="etapa != 'ideas'">
+                        <page string="Perfil Comunicacional">
+                            <group col="2">
+                                <group>
+                                    <field name="notas"/>
+                                    <field name="industria"/>
+                                    <field name="orientacion_comunicacion"/>
+                                    <field name="tono_comunicacion"/>
+                                    <field name="usar"/>
+                                    <field name="evitar"/>
+                                    <field name="competencia_urls"/>
+                                    <field name="tendencias_urls"/>
+                                    <field name="publico_objetivo"/>
+
+                                    <field name="dias_festivos_referencia" colspan="1"/>
+                                    <button name="action_sugerir_dias_festivos"
+                                            type="object"
+                                            string="Sugerir Festivos"
+                                            class="btn-secondary"
+                                            icon="fa-calendar-o"/>
+
+                                    <button name="action_generate_prompt"
+                                            type="object"
+                                            string="Generar Prompt"
+                                            class="btn-primary"
+                                            icon="fa-android"/>
+                                </group>
+                                <group>
+                                    <field name="metricas"/>
+                                </group>
+                            </group>
+
+                        </page>
+
+                        <page string="Prompt para IA">
+                            <group>
+                                <field name="promtp_ideas"/>
+
+                            </group>
+                        </page>
+                    </notebook>
+
+                    <!-- 🟦 Etapa: Reunión -->
+                    <group string="Reunión con Cliente" invisible="etapa != 'reunion'">
+                        <field name="feedback_cliente"/>
+                        <field name="anotaciones_cliente"/>
+                    </group>
+
+                    <!-- 🟧 Etapa: Refinamiento -->
+                    <group string="Refinamiento" invisible="etapa != 'refinar'">
+                        <field name="plan_base"/>
+                        <field name="plan_refinado"/>
+                    </group>
+
+                    <!-- 🟥 Etapa: Publicaciones -->
+                    <group string="Publicaciones" invisible="etapa != 'publicaciones'">
+                        <field name="publicaciones_finales"/>
+                        <field name="propuestas_ids">
+                            <list editable="bottom">
+                                <field name="nombre"/>
+                                <field name="copy"/>
+                                <field name="hashtags"/>
+                                <field name="aprobado"/>
+                            </list>
+                        </field>
+                    </group>
+                </sheet>
+
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vista árbol -->
+    <record id="view_gl_contenido_flujo_tree" model="ir.ui.view">
+        <field name="name">gl.contenido.flujo.list</field>
+        <field name="model">gl.contenido.flujo</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="partner_id"/>
+                <field name="etapa"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Acción -->
+    <record id="action_gl_contenido_flujo" model="ir.actions.act_window">
+        <field name="name">Flujo de Contenido</field>
+        <field name="res_model">gl.contenido.flujo</field>
+        <field name="view_mode">kanban,list,form</field>
+    </record>
+
+    <!-- Menú dentro de Project -->
+    <menuitem id="menu_gl_contenido_flujo"
+              name="Creador de Contenido"
+              parent="project.menu_main_pm"
+              sequence="50"
+              action="action_gl_contenido_flujo"/>
+</odoo>

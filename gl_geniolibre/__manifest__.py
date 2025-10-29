@@ -33,7 +33,7 @@
         'views/gl_project_portal.xml',
         'views/gl_project_portal_calendar.xml',
         'views/gl_social_monthly_metrics.xml',
-        # 'views/gl_contenido_flujo.xml',
+        'views/gl_contenido_flujo.xml',
         'views/sale_order_line_tax_view.xml',
 
         'report/gl_print_task.xml',
