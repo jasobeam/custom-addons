@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <template id="report_saleorder_document_add_tax" inherit_id="sale.report_saleorder_document">
+
+        <!-- 🧾 Agregar encabezado "Impuesto" -->
+        <xpath expr="//th[@name='th_taxes']" position="after">
+            <th name="th_price_tax" class="text-end text-nowrap"
+                t-if="doc.amount_tax > 0">Impuesto</th>
+        </xpath>
+
+        <!-- 🧾 Agregar encabezado "Precio Total (c/IGV)" -->
+        <xpath expr="//th[@name='th_subtotal']" position="after">
+            <th name="th_total_with_tax" class="text-end text-nowrap"
+                t-if="doc.amount_tax > 0">Precio Total (c/IGV)</th>
+        </xpath>
+
+        <!-- 💰 Columna del impuesto por línea -->
+        <xpath expr="//td[@name='td_taxes']" position="after">
+            <td name="td_price_tax" class="text-end text-nowrap"
+                t-if="doc.amount_tax > 0">
+                <span t-field="line.price_tax"
+                      t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
+            </td>
+        </xpath>
+
+        <!-- 💰 Columna del total con impuesto -->
+        <xpath expr="//td[@name='td_subtotal']" position="after">
+            <td name="td_price_total_with_tax" class="text-end text-nowrap"
+                t-if="doc.amount_tax > 0">
+                <span t-field="line.price_total_with_tax"
+                      t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
+            </td>
+        </xpath>
+
+    </template>
+</odoo>

@@ -11,7 +11,7 @@ from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
 LinkedIn_Version = "202505"
-
+API_VERSION = "v23.0"
 
 class GoogleAdsAccount(models.Model):
     _name = 'google.ads.account'
@@ -82,7 +82,7 @@ class Partner(models.Model):
             if not access_token:
                 return
 
-            url = f"https://graph.facebook.com/v19.0/me/adaccounts"
+            url = f"https://graph.facebook.com/{API_VERSION}/me/adaccounts"
             params = {
                 'access_token': access_token,
                 'fields': 'name,account_id'
@@ -121,14 +121,13 @@ class Partner(models.Model):
         if self.facebook_page_id:
             access_token = self.env['ir.config_parameter'].sudo()
             page_access_token = access_token.get_param('gl_facebook.api_key')
-            version = 'v22.0'
             # api_url_token = f'https://graph.facebook.com/{version}/{self.facebook_page_id}?fields=access_token&access_token={page_access_token}'
 
             params = {
                 'fields': 'access_token,instagram_business_account',
                 'access_token': page_access_token,
             }
-            url = f'https://graph.facebook.com/v22.0/{self.facebook_page_id}'
+            url = f'https://graph.facebook.com/{API_VERSION}/{self.facebook_page_id}'
             fetch_facebook_accounts()
 
             try:

@@ -42,9 +42,6 @@ class gl_tiktok_oauth_controller(http.Controller):
             tiktok_redirect = parametros.get_param('tiktok_redirect')
 
             verifier = res_partner.code_verifier
-            challenge = res_partner.code_challenge
-
-
             payload = {
                 'client_key': tiktok_client,
                 'client_secret': tiktok_secret,
@@ -54,8 +51,6 @@ class gl_tiktok_oauth_controller(http.Controller):
                 'code_verifier': verifier,
 
             }
-            print(verifier)
-            print(payload)
             headers = {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Cache-Control': 'no-cache'
@@ -66,9 +61,6 @@ class gl_tiktok_oauth_controller(http.Controller):
             access_token = data.get('access_token')
             expires_in = data.get('expires_in')
             refresh_token = data.get('refresh_token')
-            refresh_expires_in = data.get('refresh_expires_in')
-            print(data)
-
             res_partner.write({'tiktok_auth_code': code})
             res_partner.write({'tiktok_access_token': access_token})
             res_partner.write({'tiktok_expires_in': expires_in})
@@ -76,7 +68,6 @@ class gl_tiktok_oauth_controller(http.Controller):
             res_partner.write({'tiktok_issued_at': int(datetime.now().timestamp())})
 
 
-            print(code)
             _logger.info("Successfully received TikTok auth code")
 
             return redirect(f'/web#id={partner_id}&model=res.partner&view_type=form')

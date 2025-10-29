@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_order_form_tax_line" model="ir.ui.view">
+        <field name="name">sale.order.form.tax.line</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Añadir columna Impuesto -->
+            <xpath expr="//field[@name='order_line']/list/field[@name='price_total']" position="after">
+                <field name="price_tax" string="Impuesto"
+                       optional="show"/>
+            </xpath>
+
+            <!-- Añadir columna Precio Total (c/IGV) -->
+            <xpath expr="//field[@name='order_line']/list/field[@name='price_tax']" position="after">
+                <field name="price_total_with_tax"
+                       string="Precio Total (c/IGV)"
+                       optional="show"/>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

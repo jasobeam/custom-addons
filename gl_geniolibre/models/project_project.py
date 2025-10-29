@@ -415,6 +415,7 @@ class project_project(models.Model):
             response.raise_for_status()
             result = response.json()
 
+
             all_data.extend(result.get('data', []))
             next_url = result.get('paging', {}).get('next')
             if next_url:
@@ -503,7 +504,6 @@ class project_project(models.Model):
             page_count += 1
 
         resumen_por_tipo = {ptype: data for ptype, data in post_type_data.items()}
-
         return {
             'totals': totals,
             'post_type_summary': resumen_por_tipo,
@@ -546,7 +546,6 @@ class project_project(models.Model):
             'since': since,
             'until': until
         }
-        print("Fechas", since, until)
         response = requests.get(base_url, params=params, timeout=15)
         response.raise_for_status()
         result = response.json()
@@ -620,10 +619,32 @@ class project_project(models.Model):
                     'views': insights.get('views', 0),
                 })
 
+        # 4️⃣ Demográficos (edad/género + ciudades + actividad por hora)
+        demo_url = f"https://graph.facebook.com/{API_VERSION}/{self.partner_instagram_page_id}/insights"
+        demo_params = {
+            'access_token': self.partner_page_access_token,
+            'metric': 'audience_gender_age,audience_city,online_followers',
+            'period': 'lifetime'
+        }
+
+        demo_response = requests.get(demo_url, params=demo_params, timeout=15).json()
+        demographics = {}
+        for metric in demo_response.get("data", []):
+            name = metric.get("name")
+            values = metric.get("values", [])
+            if values:
+                demographics[name] = values[0].get("value", {})
+
+        # 🔚 Return extendido
         return {
             'account_metrics': account_metrics,
             'totals': metrics,
             'posts': posts,
+            'demographics': {
+                'gender_age': demographics.get('audience_gender_age', {}),
+                'city': demographics.get('audience_city', {}),
+                'online_followers': demographics.get('online_followers', {})
+            }
         }
 
     def get_meta_ads_data(self, since, until):
@@ -708,14 +729,33 @@ class project_project(models.Model):
                     'actions': insights.get('actions', []),
                 }
 
+                # 🔽 Llamadas adicionales: breakdowns válidos
+                campaign_data['breakdowns'] = {}
+
+                valid_breakdowns = {
+                    'age_gender': 'age,gender',
+                    'platform_device': 'publisher_platform,impression_device'
+                }
+
+                for key, bd in valid_breakdowns.items():
+                    try:
+                        insights_url = f"https://graph.facebook.com/{API_VERSION}/{campaign.campaign_id}/insights"
+                        insights_params = {
+                            'access_token': self.partner_page_access_token,
+                            'time_range': time_range_str,
+                            'fields': 'impressions,clicks,spend,reach,frequency,actions',
+                            'breakdowns': bd
+                        }
+                        resp = requests.get(insights_url, params=insights_params, timeout=15).json()
+                        campaign_data['breakdowns'][key] = resp.get('data', [])
+                    except Exception:
+                        campaign_data['breakdowns'][key] = []
+
                 all_campaigns_data.append(campaign_data)
 
             except Exception:
                 continue
 
-        # Imprimir para depuración en formato JSON
-
-        # Retornar solo crudos; métricas agregadas se calculan en merge_final_metaads_data
         return {
             'campaigns': all_campaigns_data
         }
@@ -1232,7 +1272,6 @@ def resumir_reporte(data: dict) -> dict:
         "Cliente": data.get("partner_name"),
         "Periodo": data.get("report_period")
     }
-
     # ---------------- Facebook ----------------
     fb = data.get("facebook_data", {})
     if fb:
@@ -1286,16 +1325,52 @@ def resumir_reporte(data: dict) -> dict:
             "CPM": summary.get("cpm", 0),
             "Conversaciones": summary.get("total_conversaciones", 0),
         }
-        resumen["Meta Ads"]["Top Campaigns"] = [{
-            "Nombre": c.get("name"),
-            "Impresiones": c.get("impressions"),
-            "Clicks": c.get("clicks"),
-            "Alcance": c.get("reach"),
-            "Gasto": c.get("spend"),
-            "CTR": c.get("ctr"),
-            "CPC": c.get("cpc"),
-            "Estado": c.get("status"),
-        } for c in ads.get("campaigns", [])]
+
+        resumen["Meta Ads"]["Top Campaigns"] = []
+        for c in ads.get("campaigns", []):
+            total_imp = float(c.get("impressions", 0)) or 1
+            total_clicks = float(c.get("clicks", 0)) or 1
+
+            # 🔽 resumir Edad/Género
+            resumen_edad_genero = []
+            for item in c.get("breakdowns", {}).get("age_gender", []):
+                imp = float(item.get("impressions", 0))
+                clk = float(item.get("clicks", 0))
+                resumen_edad_genero.append({
+                    "segmento": f"{item.get('age', '')} {item.get('gender', '')}".strip(),
+                    "impressions": imp,
+                    "clicks": clk,
+                    "pct_impressions": round((imp / total_imp) * 100, 2),
+                    "pct_clicks": round((clk / total_clicks) * 100, 2),
+                })
+
+            # 🔽 resumir Plataforma/Dispositivo
+            resumen_platform_device = []
+            for item in c.get("breakdowns", {}).get("platform_device", []):
+                imp = float(item.get("impressions", 0))
+                clk = float(item.get("clicks", 0))
+                resumen_platform_device.append({
+                    "segmento": f"{item.get('publisher_platform', '')} {item.get('impression_device', '')}".strip(),
+                    "impressions": imp,
+                    "clicks": clk,
+                    "pct_impressions": round((imp / total_imp) * 100, 2),
+                    "pct_clicks": round((clk / total_clicks) * 100, 2),
+                })
+
+            resumen["Meta Ads"]["Top Campaigns"].append({
+                "Nombre": c.get("name"),
+                "Impresiones": float(c.get("impressions", 0)),
+                "Clicks": float(c.get("clicks", 0)),
+                "Alcance": float(c.get("reach", 0)),
+                "Gasto": float(c.get("spend", 0)),
+                "CTR": float(c.get("ctr", 0)),
+                "CPC": float(c.get("cpc", 0)),
+                "Estado": c.get("status"),
+                "Breakdowns": {
+                    "Edad_Genero": resumen_edad_genero,
+                    "Plataforma_Dispositivo": resumen_platform_device
+                }
+            })
 
     return resumen
 
@@ -1395,7 +1470,6 @@ def merge_final_google_ads_data(data_list):
 
     return merged
 
-
 def merge_final_tiktok_data(chunk_results):
     print(chunk_results)
     try:
@@ -1438,7 +1512,6 @@ def merge_final_tiktok_data(chunk_results):
             "error": f"❌ Error al combinar datos de TikTok: {str(e)}"
         }
 
-
 def merge_final_metaads_data(chunks):
     """
     Combina múltiples bloques de datos de MetaAds en un solo dict.
@@ -1448,8 +1521,6 @@ def merge_final_metaads_data(chunks):
     """
     import json
     # Solo para depuración
-    print(json.dumps(chunks, indent=4, ensure_ascii=False))
-
     all_campaigns = []
     total_impressions = total_clicks = total_spend = total_reach = total_cost_per_conversion = 0
     total_conversaciones = 0
@@ -1517,7 +1588,6 @@ def merge_final_metaads_data(chunks):
         'summary': summary,
         'campaigns': all_campaigns
     }
-
 
 def merge_final_facebook_data(chunks):
     from datetime import datetime
@@ -1598,10 +1668,9 @@ def merge_final_facebook_data(chunks):
         merged['totals']['page_fans'] = all_page_fans[-1][1]
 
     # Ordenar top 3 posts por reach
-    merged['top_posts'] = sorted(merged['top_posts'], key=lambda x: x.get('reach', 0), reverse=True)[:3]
+    merged['top_posts'] = sorted(merged['top_posts'], key=lambda x: x.get('reach', 0), reverse=True)[:5]
 
     return merged
-
 
 def merge_final_instagram_data(chunks):
     """
@@ -1684,7 +1753,7 @@ def merge_final_instagram_data(chunks):
             summary_by_type[media_type]['video_views'] += post.get('video_views', post.get('plays', 0))
 
     # Calcular top posts (por alcance)
-    top_posts = sorted(all_posts, key=lambda x: x.get('reach', 0), reverse=True)[:3]
+    top_posts = sorted(all_posts, key=lambda x: x.get('reach', 0), reverse=True)[:5]
 
     # Filtrar summary_by_type para mantener solo tipos con datos
     summary_by_type = {k: v for k, v in summary_by_type.items() if any(vv != 0 for vv in v.values())}
