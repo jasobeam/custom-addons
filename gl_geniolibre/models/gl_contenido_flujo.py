@@ -1,17 +1,30 @@
 import json
+
+import pytz
 from odoo import models, fields
 from odoo.exceptions import ValidationError
-import requests
+from datetime import datetime
 
 
 class GeneradorContenidoPropuesta(models.Model):
     _name = "gl.contenido.propuesta"
-    _description = "Propuesta de Contenido"
+    _description = "Publicación generada desde IA"
+    _rec_name = "titulo"
 
-    flujo_id = fields.Many2one("gl.contenido.flujo", string="Flujo de Contenido", required=True, ondelete="cascade")
-    nombre = fields.Char("Título de la Propuesta", required=True)
-    copy = fields.Html("Copy / Texto")
-    hashtags = fields.Char("Hashtags")
+    flujo_id = fields.Many2one("gl.contenido.flujo", string="Flujo Relacionado", ondelete="cascade")
+
+    titulo = fields.Char("Título", required=True)
+    fecha_publicacion = fields.Datetime("Fecha y Hora de Publicación")
+    tipo = fields.Selection([
+        ("post", "Post"),
+        ("reel", "Reel"),
+        ("story", "Story"),
+    ], string="Tipo de Contenido", default="post")
+    descripcion = fields.Text("Descripción")
+    texto_en_diseno = fields.Char("Texto en Diseño")
+    copy = fields.Text("Copy del Post")
+    hashtags = fields.Text("Hashtags")
+    recomendaciones = fields.Text("Recomendaciones de Diseño")
     aprobado = fields.Boolean("Aprobado", default=False)
 
 
@@ -45,6 +58,7 @@ class GeneradorContenidoFlujo(models.Model):
     usar = fields.Text("Usar")
     evitar = fields.Text("Evitar")
     promtp_ideas = fields.Text("Promtp para Chatpgt")
+    promtp_respuesta = fields.Text("Respuesta de Chatpgt")
     ideas_generadas = fields.Html("Ideas Generadas")
     orientacion_comunicacion = fields.Selection([
         ("formativa", "Formativa / Educativa"),
@@ -66,6 +80,7 @@ class GeneradorContenidoFlujo(models.Model):
     tendencias_urls = fields.Text(string="Tendencias (URLs)", help="Enlaces a videos, imágenes o publicaciones en tendencia relacionadas con la industria.")
     publico_objetivo = fields.Text(string="Público Objetivo", help="Describe el público meta de la campaña: edad, ubicación, intereses, nivel socioeconómico, etc.")
     dias_festivos_referencia = fields.Text(string="Días Festivos / Eventos Relevantes", help="Días festivos o eventos clave sugeridos por IA en función de la industria o temporada.")
+    publicacion_ids = fields.One2many("gl.contenido.propuesta", "flujo_id", string="Ideas / Publicaciones")
 
     # Etapa: Reunión
     feedback_cliente = fields.Text("Feedback del Cliente")
@@ -85,6 +100,23 @@ class GeneradorContenidoFlujo(models.Model):
 
     metricas = fields.Text("Métricas (JSON)")
 
+    def action_ver_calendario(self):
+        """Abre las propuestas del flujo actual en vista calendario"""
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Calendario de Propuestas",
+            "res_model": "gl.contenido.propuesta",
+            "view_mode": "calendar,form",
+            "domain": [
+                ("flujo_id", "=", self.id)
+            ],
+            "context": {
+                "default_flujo_id": self.id,
+            },
+            "target": "current",
+        }
+
     def _expand_etapas(self, values, domain):
         return [
             "ideas",
@@ -95,10 +127,87 @@ class GeneradorContenidoFlujo(models.Model):
 
     # Botón 1 → Crear Ideas
     def action_crear_ideas(self):
+        """Valida y convierte el JSON en registros del modelo gl.contenido.propuesta"""
         for record in self:
+            # 🕒 Determinar la zona horaria del usuario actual
+            user_tz_name = self.env.user.tz or "UTC"
+            try:
+                tz = pytz.timezone(user_tz_name)
+            except pytz.UnknownTimeZoneError:
+                tz = pytz.UTC  # fallback si el tz del usuario no es válido
+
+            # 1️⃣ Verificar existencia del JSON
+            if not record.promtp_respuesta:
+                raise ValidationError("⚠️ El campo 'promtp_respuesta' está vacío. Debes pegar un JSON válido.")
+
+            # 2️⃣ Validar estructura JSON
+            try:
+                data = json.loads(record.promtp_respuesta)
+            except json.JSONDecodeError as e:
+                raise ValidationError(f"❌ El contenido no es un JSON válido:\n{e}")
+
+            if not isinstance(data, list):
+                raise ValidationError("❌ El JSON debe ser una lista de objetos (ejemplo: [ { ... }, { ... } ])")
+
+            # 3️⃣ Eliminar registros previos (opcional)
+            record.publicacion_ids.unlink()
+
+            # 4️⃣ Crear nuevas propuestas
+            for item in data:
+                if not isinstance(item, dict):
+                    raise ValidationError("Cada elemento del JSON debe ser un objeto con claves y valores válidos.")
+
+                # --- Procesar fecha_publicacion ---
+                fecha_publicacion_str = item.get("fecha_publicacion")
+                fecha_publicacion = False
+
+                if fecha_publicacion_str:
+                    if len(fecha_publicacion_str) == 10:
+                        fecha_publicacion_str = f"{fecha_publicacion_str} 08:00:00"
+
+                    try:
+                        # 1. Convertir string → datetime local
+                        fecha_local = datetime.strptime(fecha_publicacion_str, "%Y-%m-%d %H:%M:%S")
+                        # 2. Localizar con tz del usuario
+                        fecha_local = tz.localize(fecha_local)
+                        # 3. Convertir a UTC
+                        fecha_utc = fecha_local.astimezone(pytz.UTC)
+                        # 4. Remover tzinfo → Odoo espera naive UTC
+                        fecha_publicacion = fecha_utc.replace(tzinfo=None)
+                    except Exception:
+                        raise ValidationError(f"Formato de fecha inválido: {fecha_publicacion_str}. Usa 'YYYY-MM-DD HH:MM:SS'")
+                vals = {
+                    "flujo_id": record.id,
+                    "titulo": item.get("titulo", "Sin título"),
+                    "fecha_publicacion": fecha_publicacion,
+                    "tipo": item.get("tipo", "post"),
+                    "descripcion": item.get("descripcion"),
+                    "texto_en_diseno": item.get("texto_en_diseno"),
+                    "copy": item.get("copy"),
+                    "hashtags": (
+                        ", ".join(item.get("hashtags", [])) if isinstance(item.get("hashtags"), list) else item.get("hashtags")),
+                    "recomendaciones": item.get("recomendaciones"),
+                    "aprobado": False,
+                }
+
+                # Validar campos mínimos
+                if not vals["titulo"]:
+                    raise ValidationError("Cada propuesta debe tener un título válido.")
+
+                self.env["gl.contenido.propuesta"].create(vals)
+
+            # 5️⃣ Avanzar etapa del flujo
             record.etapa = "reunion"
 
-    # Botón 2 → Refinar Propuestas
+        # 6️⃣ Efecto visual
+        return {
+            "effect": {
+                "fadeout": "slow",
+                "message": "✅ Propuestas creadas correctamente desde JSON.",
+                "type": "rainbow_man",
+            }
+        }
+
     def action_refinar_propuestas(self):
         for record in self:
             record.etapa = "refinar"
@@ -209,84 +318,152 @@ class GeneradorContenidoFlujo(models.Model):
         }
 
     def action_generate_prompt(self):
-        """Genera un prompt completo para IA (orden + JSON base), lo guarda y recarga la vista."""
+        """Genera un prompt completo para IA (orden + JSON base + plantilla de salida),
+        aplicando DRY: toda la información de contexto vive en el JSON; 'Condiciones' solo define
+        formato y cantidades. Maneja fechas/JSON seguros, deduplica URLs y evita llaves conflictivas.
+        """
         import json
 
-        for record in self:
-            redes = [r.name for r in record.redes_ids]
+        def _safe_date_str(d):
+            # Devuelve ISO (YYYY-MM-DD) o "" si es None
+            try:
+                return d.isoformat() if d else ""
+            except Exception:
+                return ""
 
-            # --- Construcción del JSON base ---
+        def _safe_date_human(d):
+            # Devuelve YYYY-MM-DD legible o "..."
+            try:
+                return d.isoformat() if d else "..."
+            except Exception:
+                return "..."
+
+        def _try_json_loads(s):
+            try:
+                return json.loads(s or "{}")
+            except Exception:
+                return {}
+
+        def _dedup_lines(s: str) -> str:
+            """Recibe texto multilinea, quita líneas vacías, deduplica y conserva orden."""
+            if not s:
+                return ""
+            seen, out = set(), []
+            for line in (s.replace("\r", "").split("\n")):
+                line = line.strip()
+                if not line:
+                    continue
+                if line not in seen:
+                    seen.add(line)
+                    out.append(line)
+            return "\n".join(out)
+
+        for record in self:
+            # --- Datos base seguros ---
+            redes = [r.name for r in record.redes_ids] if record.redes_ids else []
+            partner = record.partner_id
+            idioma = (partner.lang or "es_ES").split("_")[0]
+            pais = partner.country_id.name or "Perú"
+            ciudad = partner.city or "Lima"
+
+            fecha_ini_iso = _safe_date_str(record.date_start)
+            fecha_fin_iso = _safe_date_str(record.date)
+            fecha_ini_human = _safe_date_human(record.date_start)
+            fecha_fin_human = _safe_date_human(record.date)
+
+            # Deduplicar URLs
+            competencia_clean = _dedup_lines((record.competencia_urls or "").strip())
+            tendencias_clean = _dedup_lines((record.tendencias_urls or "").strip())
+            dias_clean = (record.dias_festivos_referencia or "").strip()
+
+            metricas = _try_json_loads(record.metricas)
+
+            # --- JSON base (ÚNICA FUENTE de reglas de contexto) ---
             data = {
                 "cliente": {
-                    "nombre": record.partner_id.name or "",
+                    "nombre": partner.name or "",
                     "industria": record.industria or "",
-                    "plan": {
-                        "nombre": record.plan_cliente or "",
-                        "posts": record.plan_post or 0,
-                        "historias": record.plan_historia or 0,
-                        "reels": record.plan_reel or 0,
-                    },
+
                     "redes_activas": redes,
                 },
                 "contexto_creativo": {
                     "etapa": record.etapa,
                     "notas": (record.notas or "").strip(),
                     "usar": (record.usar or "").strip(),
-                    "evitar": (record.evitar or "").strip(),
+                    "evitar": (record.evitar or "").strip(),  # Reglas: quedan solo aquí (no se repiten en Condiciones)
                     "orientacion": record.orientacion_comunicacion or "",
                     "tono": record.tono_comunicacion or "",
                     "publico_objetivo": (record.publico_objetivo or "").strip(),
-                    "competencia_urls": (record.competencia_urls or "").strip(),
-                    "tendencias_urls": (record.tendencias_urls or "").strip(),
-                    "dias_festivos_referencia": (record.dias_festivos_referencia or "").strip(),
+                    "competencia_urls": competencia_clean,
+                    "tendencias_urls": tendencias_clean,
+                    "dias_festivos_referencia": dias_clean,
                     "rango_fechas": {
-                        "inicio": str(record.date_start or ""),
-                        "fin": str(record.date or ""),
+                        "inicio": fecha_ini_iso,
+                        "fin": fecha_fin_iso
+                    },
+                    "idioma": idioma,
+                    "ubicacion": {
+                        "ciudad": ciudad,
+                        "pais": pais
                     },
                 },
-                "referencias_metricas": json.loads(record.metricas or "{}"),
+                "referencias_metricas": metricas,
                 "objetivo_generacion": {
                     "tipo": (
                         "ideas_iniciales" if record.etapa == "ideas" else "refinamiento" if record.etapa == "refinar" else "publicaciones"),
-                    "descripcion": ("Generar contenido estratégico alineado al tono, orientación y plan del cliente, "
-                                    "considerando métricas previas, público objetivo y calendario de fechas relevantes."),
+                    "descripcion": (
+                        "Generar contenido alineado al contexto creativo (tono, orientación, idioma, público, fechas), "
+                        f"apoyado en métricas previas y con foco en la industria del cliente "
+                        f"({record.industria or 'especificada por el cliente'})."),
                 },
             }
 
-            # --- JSON compacto ---
+            # --- JSON base compacto ---
             json_base = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
-            # --- Construcción de la orden principal ---
-            orden = (f"Eres un agente de marketing especializado en \"{record.industria or 'marketing digital'}\". "
-                     f"Genera contenido estratégico para redes sociales basado en el siguiente contexto:\n\n"
-                     f"- Cliente: {record.partner_id.name or 'Sin nombre especificado'}\n"
-                     f"- Periodo: del {record.date_start or '...'} al {record.date or '...'}\n"
-                     f"- Público objetivo: {(record.publico_objetivo or 'No especificado').strip()}\n"
-                     f"- Publica {record.plan_post or 0} posts y {record.plan_reel or 0} reels.\n"
-                     f"- El enfoque de comunicación debe ser {record.orientacion_comunicacion or 'coherente con la marca'} "
-                     f"y con un tono {record.tono_comunicacion or 'profesional'}.\n"
-                     f"- Utiliza las siguientes redes sociales: {', '.join(redes) if redes else 'sin especificar'}.\n\n"
-                     f"Ten en cuenta las siguientes referencias:\n"
-                     f"- Competencia: {(record.competencia_urls or 'No se han agregado URLs de referencia').strip()}\n"
-                     f"- Tendencias: {(record.tendencias_urls or 'No se han agregado tendencias').strip()}\n"
-                     f"- Días festivos relevantes: {(record.dias_festivos_referencia or 'No se han definido eventos').strip()}\n\n"
-                     f"Usa el siguiente JSON como base de información:\n\n")
+            # --- Prompt contextual (DRY: no repetir lo que ya está en el JSON) ---
+            orden = ("Eres un agente de marketing especializado en el sector indicado. "
+                     "Lee el siguiente JSON y, sin reescribirlo ni resumirlo, úsalo como única fuente de verdad.\n\n"
+                     f"{json_base}\n\n")
+
+            # --- Plantilla de salida: SOLO formato + cantidades; remite a `contexto_creativo` ---
+            # OJO: llaves escapadas {{ }} por uso de .format()
+            instruccion_json = (
+                "A partir del contexto anterior, genera un JSON estructurado con el plan de publicaciones del periodo. "
+                "Devuelve ÚNICAMENTE el JSON con la siguiente estructura:\n\n"
+                "[\n"
+                "  {{\n"
+                "    \"titulo\": \"string\",\n"
+                "    \"fecha_publicacion\": \"YYYY-MM-DD HH:MM:SS\",\n"
+                "    \"tipo\": \"post | reel | historia | carrusel\",\n"
+                "    \"descripcion\": \"Breve resumen del contenido y su objetivo comunicacional.\",\n"
+                "    \"texto_en_diseno\": \"Frase principal que aparecerá en la pieza gráfica o portada del video.\",\n"
+                "    \"copy\": \"Texto para la publicación (copy AIDA).\",\n"
+                "    \"hashtags\": [\"#hashtag1\", \"#hashtag2\", \"#hashtag3\"],\n"
+                "    \"recomendaciones\": \"Sugerencias sobre estilo visual, elementos gráficos, colores, encuadre o tono.\"\n"
+                "  }}\n"
+                "]\n\n"
+                "Condiciones:\n"
+                "- Genera {posts} posts y {reels} reels según el plan.\n"
+                "- Respeta estrictamente TODO lo definido en `contexto_creativo` (tono, orientación, idioma, público_objetivo, "
+                "fechas, usar/evitar, ubicación).\n"
+                "- Entrega solo el JSON sin explicaciones adicionales.").format(posts=int(record.plan_post or 0), reels=int(record.plan_reel or 0))
 
             # --- Guardar el prompt completo ---
-            record.promtp_ideas = orden + json_base
+            record.promtp_ideas = orden + instruccion_json
 
-        # --- Mostrar notificación y recargar vista ---
+        # --- Notificación visual ---
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
             "params": {
                 "title": "✅ Prompt IA generado",
-                "message": "El JSON y la instrucción se han creado correctamente. Actualizando la vista...",
+                "message": "Prompt generado sin redundancias (DRY). Actualizando la vista...",
                 "sticky": False,
                 "type": "success",
                 "next": {
                     "type": "ir.actions.client",
-                    "tag": "reload",
+                    "tag": "reload"
                 },
             },
         }

@@ -1,5 +1,7 @@
 <odoo>
-
+    <!-- ====================================================== -->
+    <!-- Formulario Principal-->
+    <!-- ====================================================== -->
     <!-- ✅ Vista de búsqueda corregida -->
     <record id="view_gl_contenido_flujo_search" model="ir.ui.view">
         <field name="name">gl.contenido.flujo.search</field>
@@ -65,7 +67,7 @@
                 <field name="etapa"/>
                 <field name="notas"/>
                 <templates>
-                    <t t-name="card">
+                    <t t-name="card" class="mb-2">
                         <div class="oe_kanban_global_click o_kanban_card">
                             <!-- 🔹 Título principal destacado -->
                             <div class="o_kanban_primary_left">
@@ -120,7 +122,7 @@
                                 invisible="etapa == 'ideas'"/>
                         <button name="action_crear_ideas"
                                 type="object"
-                                string="Crear Ideas"
+                                string="Generar Propuestas de Contenido"
                                 class="btn-primary"
                                 invisible="etapa != 'ideas'"/>
                         <button name="action_refinar_propuestas"
@@ -208,12 +210,24 @@
 
                             </group>
                         </page>
+                        <page string="Propuestas de IA">
+                            <group>
+                                <field name="promtp_respuesta"/>
+
+                            </group>
+                        </page>
                     </notebook>
 
                     <!-- 🟦 Etapa: Reunión -->
                     <group string="Reunión con Cliente" invisible="etapa != 'reunion'">
                         <field name="feedback_cliente"/>
                         <field name="anotaciones_cliente"/>
+                        <field name="publicacion_ids"/>
+                        <button name="action_ver_calendario"
+                                type="object"
+                                string="Ver Calendario"
+                                class="btn-secondary"
+                                icon="fa-calendar"/>
                     </group>
 
                     <!-- 🟧 Etapa: Refinamiento -->
@@ -227,7 +241,7 @@
                         <field name="publicaciones_finales"/>
                         <field name="propuestas_ids">
                             <list editable="bottom">
-                                <field name="nombre"/>
+                                <field name="titulo"/>
                                 <field name="copy"/>
                                 <field name="hashtags"/>
                                 <field name="aprobado"/>
@@ -266,4 +280,91 @@
               parent="project.menu_main_pm"
               sequence="50"
               action="action_gl_contenido_flujo"/>
+    <!-- ====================================================== -->
+    <!-- TREE VIEW (Lista de Propuestas generadas desde IA)     -->
+    <!-- ====================================================== -->
+    <record id="view_gl_contenido_propuesta_list" model="ir.ui.view">
+        <field name="name">gl.contenido.propuesta.list</field>
+        <field name="model">gl.contenido.propuesta</field>
+        <field name="arch" type="xml">
+            <list string="Propuestas de Contenido" create="false">
+                <field name="titulo"/>
+                <field name="tipo"/>
+                <field name="fecha_publicacion"/>
+                <field name="aprobado"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ====================================================== -->
+    <!-- FORM VIEW (Detalle de la Propuesta generada desde IA)  -->
+    <!-- ====================================================== -->
+    <record id="view_gl_contenido_propuesta_form" model="ir.ui.view">
+        <field name="name">gl.contenido.propuesta.form</field>
+        <field name="model">gl.contenido.propuesta</field>
+        <field name="arch" type="xml">
+            <form string="Propuesta de Contenido" class="o_form_sheet">
+                <!-- Ribbon condicional de aprobación -->
+                <widget name="web_ribbon"
+                        title="Aprobado"
+                        bg_color="text-bg-success"
+                        invisible="not aprobado"/>
+
+                <sheet>
+                    <group>
+                        <field name="titulo"/>
+                        <field name="tipo"/>
+                        <field name="fecha_publicacion"/>
+                        <field name="flujo_id" readonly="1"/>
+                        <field name="aprobado" widget="boolean_toggle"/>
+                    </group>
+
+                    <notebook>
+                        <page string="Descripción y Copy">
+                            <group col="2">
+                                <field name="descripcion" colspan="2"/>
+                                <field name="texto_en_diseno"/>
+                                <field name="copy" colspan="2"/>
+                            </group>
+                        </page>
+
+                        <page string="Hashtags y Recomendaciones">
+                            <group col="2">
+                                <field name="hashtags" colspan="2"/>
+                                <field name="recomendaciones" colspan="2"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <!-- ====================================================== -->
+    <!-- CALENDAR VIEW (Detalle de la Propuesta generada desde IA)  -->
+    <!-- ====================================================== -->
+    <record id="view_gl_contenido_propuesta_calendar" model="ir.ui.view">
+        <field name="name">gl.contenido.propuesta.calendar</field>
+        <field name="model">gl.contenido.propuesta</field>
+        <field name="arch" type="xml">
+            <calendar string="Calendario de Propuestas"
+                      date_start="fecha_publicacion"
+                      date_stop="fecha_publicacion"
+                      color="tipo"
+                      mode="month"
+                      event_open_popup="false">
+                <field name="titulo"/>
+                <field name="tipo"/>
+                <field name="texto_en_diseno"/>
+                <field name="copy"/>
+                <field name="recomendaciones"/>
+                <field name="aprobado"/>
+            </calendar>
+        </field>
+    </record>
+    <record id="action_gl_contenido_propuesta_calendar" model="ir.actions.act_window">
+        <field name="name">Calendario de Propuestas</field>
+        <field name="res_model">gl.contenido.propuesta</field>
+        <field name="view_mode">calendar,form</field>
+        <field name="view_id" ref="view_gl_contenido_propuesta_calendar"/>
+    </record>
 </odoo>
