@@ -1,35 +1,170 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <template id="report_saleorder_document_add_tax" inherit_id="sale.report_saleorder_document">
+        <!-- 🎯 Ajustar ancho fijo de la columna de descuento existente -->
+        <xpath expr="//th[@name='th_discount']" position="attributes">
+            <attribute name="style">width:120px; max-width:120px; word-wrap:break-word;</attribute>
+        </xpath>
 
-        <!-- 🧾 Agregar encabezado "Impuesto" -->
-        <xpath expr="//th[@name='th_taxes']" position="after">
+        <xpath expr="//td[span[@t-field='line.discount']]" position="attributes">
+            <attribute name="style">width:120px; max-width:120px; word-wrap:break-word;</attribute>
+        </xpath>
+
+        <!-- 🧾 Reordenar encabezados: Descuento → Monto → Impuesto → Total -->
+        <xpath expr="//th[@name='th_subtotal']" position="replace">
+
+            <!-- 💰 Monto -->
+            <th name="th_subtotal" class="text-end text-nowrap"
+                style="width:120px; max-width:120px; word-wrap:break-word;">
+                Monto
+            </th>
+
+            <!-- 💸 Impuesto -->
             <th name="th_price_tax" class="text-end text-nowrap"
-                t-if="doc.amount_tax > 0">Impuesto</th>
-        </xpath>
+                style="width:120px; max-width:120px; word-wrap:break-word;"
+                t-if="doc.amount_tax > 0">
+                Impuesto
+            </th>
 
-        <!-- 🧾 Agregar encabezado "Precio Total (c/IGV)" -->
-        <xpath expr="//th[@name='th_subtotal']" position="after">
+            <!-- 🧾 Total con IGV -->
             <th name="th_total_with_tax" class="text-end text-nowrap"
-                t-if="doc.amount_tax > 0">Precio Total (c/IGV)</th>
+                style="width:120px; max-width:120px; word-wrap:break-word;"
+                t-if="doc.amount_tax > 0">
+                TOTAL
+            </th>
         </xpath>
 
-        <!-- 💰 Columna del impuesto por línea -->
-        <xpath expr="//td[@name='td_taxes']" position="after">
+
+        <!-- 💰 Reordenar celdas: Descuento → Monto → Impuesto → Total -->
+        <xpath expr="//td[@name='td_subtotal']" position="replace">
+
+            <!-- 💰 Monto sin IGV -->
+            <td name="td_subtotal" class="text-end text-nowrap"
+                style="width:120px; max-width:120px; word-wrap:break-word;">
+                <span t-field="line.price_subtotal"/>
+            </td>
+
+            <!-- 💸 Impuesto -->
             <td name="td_price_tax" class="text-end text-nowrap"
+                style="width:120px; max-width:120px; word-wrap:break-word;"
                 t-if="doc.amount_tax > 0">
                 <span t-field="line.price_tax"
                       t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
             </td>
-        </xpath>
 
-        <!-- 💰 Columna del total con impuesto -->
-        <xpath expr="//td[@name='td_subtotal']" position="after">
+            <!-- 🧾 Total con IGV -->
             <td name="td_price_total_with_tax" class="text-end text-nowrap"
+                style="width:120px; max-width:120px; word-wrap:break-word;"
                 t-if="doc.amount_tax > 0">
                 <span t-field="line.price_total_with_tax"
                       t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
             </td>
+        </xpath>
+
+        <!-- 🚫 Ocultar columnas no deseadas -->
+        <xpath expr="//th[@name='th_quantity']" position="attributes">
+            <attribute name="t-if">False</attribute>
+        </xpath>
+        <xpath expr="//th[@name='th_priceunit']" position="attributes">
+            <attribute name="t-if">False</attribute>
+        </xpath>
+        <xpath expr="//th[@name='th_taxes']" position="attributes">
+            <attribute name="t-if">False</attribute>
+        </xpath>
+
+        <xpath expr="//td[@name='td_quantity']" position="attributes">
+            <attribute name="t-if">False</attribute>
+        </xpath>
+        <xpath expr="//td[@name='td_priceunit']" position="attributes">
+            <attribute name="t-if">False</attribute>
+        </xpath>
+        <xpath expr="//td[@name='td_taxes']" position="attributes">
+            <attribute name="t-if">False</attribute>
+        </xpath>
+
+        <!-- 💵 Reemplazar la tabla de totales (alineada a la derecha) -->
+        <xpath expr="//div[@name='so_total_summary']//table[contains(@class,'o_total_table')]" position="replace">
+            <div id="total" class="row mt-n3" name="total">
+                <div t-attf-class="#{'col-6' if report_type != 'html' else 'col-sm-7 col-md-6'} ms-auto">
+                    <table class="o_total_table table table-borderless">
+                        <!-- Tax totals -->
+
+                        <t t-set="tax_totals" t-value="doc.tax_totals"/>
+                        <t t-set="currency" t-value="doc.currency_id"/>
+                        <t t-set="same_tax_base" t-value="tax_totals['same_tax_base']"/>
+                        <t t-foreach="tax_totals['subtotals']" t-as="subtotal">
+                            <tr class="o_subtotal">
+                                <td>
+                                    <span t-out="subtotal['name']">Untaxed Amount</span>
+                                </td>
+                                <td class="text-end">
+                                    <span t-att-class="oe_subtotal_footer_separator"
+                                          t-out="subtotal['base_amount_currency']"
+                                          t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: currency}">
+                                        27.00
+                                    </span>
+                                </td>
+                            </tr>
+
+                            <t t-foreach="subtotal['tax_groups']" t-as="tax_group">
+                                <tr class="o_taxes">
+                                    <t t-if="same_tax_base or tax_group['display_base_amount_currency'] is None">
+                                        <td>
+                                            <span class="text-nowrap" t-out="tax_group['group_name']">Tax 15%</span>
+                                        </td>
+                                        <td class="text-end o_price_total">
+                                            <span class="text-nowrap" t-out="tax_group['tax_amount_currency']"
+                                                  t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: currency}">
+                                                1.05
+                                            </span>
+                                        </td>
+                                    </t>
+                                    <t t-else="">
+                                        <td style="width:120px; max-width:120px; word-wrap:break-word;">
+                                            <span t-out="tax_group['group_name']">Tax 15%</span>
+                                            <span>on</span>
+                                            <span class="text-nowrap" t-out="tax_group['display_base_amount_currency']"
+                                                  t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: currency}">
+                                                27.00
+                                            </span>
+                                        </td>
+                                        <td class="text-end o_price_total"
+                                            style="width:120px; max-width:120px; word-wrap:break-word;">
+                                            <span class="text-nowrap" t-out="tax_group['tax_amount_currency']"
+                                                  t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: currency}">
+                                                4.05
+                                            </span>
+                                        </td>
+                                    </t>
+                                </tr>
+                            </t>
+                        </t>
+
+                        <tr t-if="'cash_rounding_base_amount_currency' in tax_totals">
+                            <td style="width:120px; max-width:120px; word-wrap:break-word;">Rounding</td>
+                            <td class="text-end" style="width:120px; max-width:120px; word-wrap:break-word;">
+                                <span t-out="tax_totals['cash_rounding_base_amount_currency']"
+                                      t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: currency}">
+                                    0
+                                </span>
+                            </td>
+                        </tr>
+
+                        <!--Total amount with all taxes-->
+                        <tr class="o_total">
+                            <td style="width:120px; max-width:120px; word-wrap:break-word;">
+                                <strong>Total</strong>
+                            </td>
+                            <td class="text-end" style="width:120px; max-width:120px; word-wrap:break-word;">
+                                <strong t-out="tax_totals['total_amount_currency']"
+                                        t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: currency}">
+                                    31.05
+                                </strong>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
         </xpath>
 
     </template>
