@@ -1,5 +1,5 @@
 import json
-
+import requests
 import pytz
 from odoo import models, fields
 from odoo.exceptions import ValidationError
@@ -25,6 +25,7 @@ class GeneradorContenidoPropuesta(models.Model):
     copy = fields.Text("Copy del Post")
     hashtags = fields.Text("Hashtags")
     recomendaciones = fields.Text("Recomendaciones de Diseño")
+    cambios = fields.Text("Modificaciones")
     aprobado = fields.Boolean("Aprobado", default=False)
 
 
@@ -84,23 +85,25 @@ class GeneradorContenidoFlujo(models.Model):
 
     # Etapa: Reunión
     feedback_cliente = fields.Text("Feedback del Cliente")
-    anotaciones_cliente = fields.Html("Anotaciones de la Reunión")
+    anotaciones_cliente = fields.Text("Anotaciones de la Reunión")
+    promtp_refinamiento = fields.Text("Promtp para Chatpgt")
+    promtp_respuesta_refinamiento = fields.Text("Respuesta de Chatpgt")
 
     # Etapa: Refinamiento
     plan_base = fields.Html("Plan Base")
     plan_refinado = fields.Html("Plan Refinado")
 
     # Etapa: Publicaciones
-    publicaciones_finales = fields.Html("Publicaciones Finales")
+    # publicaciones_finales = fields.Html("Publicaciones Finales")
     # Propuestas de contenido
-    propuestas_ids = fields.One2many("gl.contenido.propuesta", "flujo_id", string="Propuestas de Contenido")
+    # propuestas_ids = fields.One2many("gl.contenido.propuesta", "flujo_id", string="Propuestas de Contenido")
 
     # 🔹 Aquí el proyecto de marketing asociado al cliente
     project_id = fields.Many2one("project.project", string="Proyecto Relacionado", domain="[('partner_id', '=', partner_id), ('project_type','=','marketing')]", tracking=True, )
 
     metricas = fields.Text("Métricas (JSON)")
 
-    def action_ver_calendario(self):
+    def ver_calendario(self):
         """Abre las propuestas del flujo actual en vista calendario"""
         self.ensure_one()
         return {
@@ -125,8 +128,7 @@ class GeneradorContenidoFlujo(models.Model):
             "publicaciones"
         ]
 
-    # Botón 1 → Crear Ideas
-    def action_crear_ideas(self):
+    def crear_ideas(self):
         """Valida y convierte el JSON en registros del modelo gl.contenido.propuesta"""
         for record in self:
             # 🕒 Determinar la zona horaria del usuario actual
@@ -208,17 +210,274 @@ class GeneradorContenidoFlujo(models.Model):
             }
         }
 
-    def action_refinar_propuestas(self):
+    def aceptar_refinamiento(self):
+
         for record in self:
+            # --- Validar existencia de resultado ---
+            if not record.promtp_respuesta_refinamiento:
+                raise ValidationError("No se encontró ningún resultado de refinamiento para aplicar.")
+
+            # --- Intentar parsear el JSON ---
+            try:
+                data = json.loads(record.promtp_respuesta_refinamiento)
+                if not isinstance(data, list):
+                    raise ValidationError("El resultado del refinamiento debe ser una lista JSON.")
+            except Exception as e:
+                raise ValidationError(f"Error al interpretar el JSON del refinamiento: {e}")
+
+            # --- Validar que existan publicaciones ---
+            if not record.publicacion_ids:
+                raise ValidationError("No hay publicaciones asociadas a este flujo.")
+
+            # --- Aplicar actualizaciones ---
+            for item in data:
+                pub_id = item.get("id")
+                if not pub_id:
+                    raise ValidationError("Una de las entradas del JSON no contiene el campo 'id'.")
+
+                publicacion = record.publicacion_ids.filtered(lambda p: p.id == pub_id)
+                if not publicacion:
+                    raise ValidationError(f"No se encontró la publicación con ID {pub_id} dentro de este flujo.")
+
+                # Campos actualizables
+                campos_validos = [
+                    "titulo",
+                    "tipo",
+                    "descripcion",
+                    "texto_en_diseno",
+                    "copy",
+                    "recomendaciones",
+                ]
+
+                valores_actualizados = {campo: item[campo] for campo in campos_validos if
+                                        campo in item and isinstance(item[campo], str)}
+
+                # Procesar hashtags
+                if "hashtags" in item:
+                    hashtags = item["hashtags"]
+                    if isinstance(hashtags, list):
+                        valores_actualizados["hashtags"] = " ".join(hashtags)
+                    elif isinstance(hashtags, str):
+                        valores_actualizados["hashtags"] = hashtags
+
+                # Aplicar actualización
+                if valores_actualizados:
+                    publicacion.write(valores_actualizados)
+                else:
+                    raise ValidationError(f"No se encontró ningún campo válido para actualizar en la publicación ID {pub_id}.")
+
+            # --- Cambiar la etapa del flujo ---
             record.etapa = "refinar"
+            return {
+                "effect": {
+                    "fadeout": "slow",
+                    "message": "✅ Propuestas creadas correctamente desde JSON.",
+                    "type": "rainbow_man",
+                }
+            }
 
-    # Botón 3 → Generar Tareas
-    def action_generar_tareas(self):
+    def refinar_propuestas(self):
         for record in self:
-            record.etapa = "publicaciones"
+            # --- Filtrar publicaciones no aprobadas ---
+            publicaciones = record.publicacion_ids.filtered(lambda p: not p.aprobado)
 
-    # Botón volver (ya hecho antes)
-    def action_previous_stage(self):
+            # --- Armar JSON de publicaciones a refinar ---
+            publicaciones_data = []
+            for pub in publicaciones:
+                publicaciones_data.append({
+                    "id": pub.id,
+                    "titulo": pub.titulo or "",
+                    "tipo": pub.tipo or "",
+                    "descripcion": (pub.descripcion or "").strip(),
+                    "texto_en_diseno": (pub.texto_en_diseno or "").strip(),
+                    "copy": (pub.copy or "").strip(),
+                    "hashtags": (pub.hashtags or "").split() if pub.hashtags else [],
+                    "recomendaciones": (pub.recomendaciones or "").strip(),
+                    "cambios_en publicación": (pub.cambios or "").strip(),
+                })
+
+            # --- Construcción del JSON base (respetando tu contexto creativo completo) ---
+            partner = record.partner_id
+            idioma = (partner.lang or "es_ES").split("_")[0]
+            pais = partner.country_id.name or "Perú"
+            ciudad = partner.city or "Lima"
+
+            data = {
+                "cliente": {
+                    "nombre": record.partner_id.name if record.partner_id else "",
+                    "industria": record.industria or "",
+                },
+                "contexto_creativo": {
+                    "usar": (record.usar or "").strip(),
+                    "evitar": (record.evitar or "").strip(),  # Reglas: quedan solo aquí (no se repiten en Condiciones)
+                    "orientacion": record.orientacion_comunicacion or "",
+                    "tono": record.tono_comunicacion or "",
+                    "publico_objetivo": (record.publico_objetivo or "").strip(),
+                    "idioma": idioma,
+                    "ubicacion": {
+                        "ciudad": ciudad,
+                        "pais": pais
+                    },
+                },
+                "feedback_cliente": (record.feedback_cliente or "").strip(),
+                "anotaciones_cliente": (record.anotaciones_cliente or "").strip(),
+                "publicaciones_a_refinar": publicaciones_data,
+            }
+
+            # --- Compactar JSON ---
+            json_base = json.dumps(data, ensure_ascii=False, indent=2)
+
+            # --- Prompt final (formato DRY y claro) ---
+            prompt = ("Eres un agente de marketing especializado en el sector indicado. "
+                      "Lee el siguiente JSON, que contiene el contexto creativo completo y las publicaciones no aprobadas del cliente. "
+                      "Refina los textos, ideas y recomendaciones manteniendo coherencia con el tono, orientación y objetivos del contexto.\n\n"
+                      f"{json_base}\n\n"
+                      "Devuelve ÚNICAMENTE un JSON con la misma estructura de `publicaciones_a_refinar`, "
+                      "pero con los campos actualizados y mejorados:\n"
+                      "[\n"
+                      "  {\n"
+                      "    \"id\": int,\n"
+                      "    \"titulo\": \"string\",\n"
+                      "    \"tipo\": \"post | reel | historia | carrusel\",\n"
+                      "    \"descripcion\": \"Texto mejorado y más claro\",\n"
+                      "    \"texto_en_diseno\": \"Frase optimizada para diseño\",\n"
+                      "    \"copy\": \"Versión refinada del copy\",\n"
+                      "    \"hashtags\": [\"#hashtag1\", \"#hashtag2\", \"#hashtag3\"],\n"
+                      "    \"recomendaciones\": \"Sugerencias visuales o de tono actualizadas\"\n"
+                      "  }\n"
+                      "]\n\n"
+                      "Condiciones:\n"
+                      "- Solo modifica las publicaciones incluidas.\n"
+                      "- Usa el formato AIDA sin marcadores\n"
+                      "- Usa el feedback y las anotaciones del cliente como guía.\n"
+                      "- Mantén coherencia con todo el `contexto_creativo`.\n"
+                      "- Devuelve únicamente el JSON sin texto adicional.")
+
+            # --- Guardar prompt completo ---
+            record.promtp_refinamiento = prompt
+            # --- Notificación visual ---
+            return {
+                "type": "ir.actions.client",
+                "tag": "display_notification",
+                "params": {
+                    "title": "✅ Ideas Refinadas",
+                    "message": "Contenido generado tomando en cuenta las observaciones. Actualizando la vista...",
+                    "sticky": True,
+                    "type": "success",
+                    "next": {
+                        "type": "ir.actions.client",
+                        "tag": "reload"
+                    },
+                },
+            }
+
+    def generar_tareas(self):
+
+        TIPO_MAP = {
+            "post": "feed",
+            "feed": "feed",
+            "carrusel": "feed",
+            "reel": "video_reels",
+            "video_reels": "video_reels",
+            "historia": "video_stories",
+            "story": "video_stories",
+            "video_stories": "video_stories",
+        }
+
+        action_result = None
+        for record in self:
+            if not record.project_id:
+                raise ValidationError("Debes seleccionar un Proyecto antes de generar tareas.")
+
+            propuestas = getattr(record, "propuestas_ids", False) or record.publicacion_ids
+            if not propuestas:
+                raise ValidationError("No hay propuestas/publicaciones para generar tareas.")
+
+            no_aprobadas = propuestas.filtered(lambda p: not getattr(p, "aprobado", False))
+            if no_aprobadas:
+                action_result = {
+                    "type": "ir.actions.client",
+                    "tag": "display_notification",
+                    "params": {
+                        "title": "⚠️ Publicaciones sin aprobar",
+                        "message": (f"Hay {len(no_aprobadas)} propuestas/publicaciones sin aprobar. "
+                                    "Revísalas y márcalas como aprobadas antes de generar tareas."),
+                        "type": "warning",
+                        "sticky": True,
+                    },
+                }
+                return action_result
+
+            partner_id = record.partner_id.id if getattr(record, "partner_id", False) else False
+            redes_ids = record.redes_ids.ids if getattr(record, "redes_ids", False) else []
+            asignados_ids = record.user_ids.ids if getattr(record, "user_ids", False) else []
+
+            created_count = 0
+            for prop in propuestas:
+                tipo_src = (prop.tipo or "").strip().lower()
+                tipo_task = TIPO_MAP.get(tipo_src, "otro")
+
+                vals = {
+                    "name": (prop.titulo or f"Publicación #{prop.id}").strip(),
+                    "project_id": record.project_id.id,
+                    "user_ids": [
+                        (6, 0, asignados_ids)
+                    ],  # m2m asignación
+                    "fecha_publicacion": prop.fecha_publicacion,  # requiere campo en project.task
+                    "date_deadline": prop.fecha_publicacion,  # misma fecha
+                    "tipo": tipo_task,  # selección válida en project.task
+                    "red_social_ids": [
+                        (6, 0, redes_ids)
+                    ],  # m2m desde flujo
+                    "hashtags": (prop.hashtags or "").strip(),
+                    "texto_en_diseno": (prop.texto_en_diseno or "").strip(),
+                    "partner_id": partner_id,
+                    "post_estado": "Pendiente",
+                }
+                self.env["project.task"].create(vals)
+                created_count += 1
+
+            # Cambiar etapa del flujo
+            record.etapa = "publicaciones"
+            return {
+                "type": "ir.actions.client",
+                "tag": "display_notification",
+                "params": {
+                    "title": "✅ Tareas de publicaciones creadas",
+                    "message": (
+                        f"Se crearon {created_count} tareas en el proyecto “{record.project_id.display_name}”." if created_count > 1 else f"Se creó 1 tarea en el proyecto “{record.project_id.display_name}”."),
+                    "type": "success",
+                    "sticky": False,
+                    "next": {
+                        "type": "ir.actions.act_window",
+                        "res_model": "project.task",
+                        "views": [
+                            [
+                                False,
+                                "kanban"
+                            ]
+                        ],  # 👈 abre directamente vista Kanban
+                        "view_mode": "kanban,tree,form",
+                        "domain": [
+                            [
+                                "project_id",
+                                "=",
+                                record.project_id.id
+                            ]
+                        ],  # 👈 solo tareas de ese proyecto
+                        "target": "current",
+                        "name": "Tareas del Proyecto",
+                        "context": {
+                            "default_project_id": record.project_id.id,
+                            "search_default_project_id": record.project_id.id,
+                        },
+                    },
+                },
+            }
+
+        return action_result
+
+    def previous_stage(self):
         etapa_order = [
             "ideas",
             "reunion",
@@ -231,10 +490,7 @@ class GeneradorContenidoFlujo(models.Model):
                 if idx > 0:
                     record.etapa = etapa_order[idx - 1]
 
-    def action_sugerir_dias_festivos(self):
-        """Usa la API de ChatGPT configurada para sugerir de 1 a 3 días festivos o comerciales dentro del rango definido."""
-        import requests
-
+    def sugerir_dias_festivos(self):
         for record in self:
             if not record.industria:
                 raise ValidationError("Por favor, define la industria del cliente antes de generar las sugerencias.")
@@ -256,10 +512,7 @@ class GeneradorContenidoFlujo(models.Model):
             if not api_key:
                 raise ValidationError("No se ha configurado la API Key de ChatGPT en Ajustes del sistema.")
 
-            # 🗓️ Rango de fechas
             rango_texto = f"entre {record.date_start.strftime('%d/%m/%Y')} y {record.date.strftime('%d/%m/%Y')}"
-
-            # 🧠 Prompt simplificado (solo contenido dinámico)
             prompt = (f"Industria: {record.industria}\n"
                       f"Ubicación: {ciudad}, {pais}\n"
                       f"Idioma: {idioma}\n\n"
@@ -317,12 +570,7 @@ class GeneradorContenidoFlujo(models.Model):
             },
         }
 
-    def action_generate_prompt(self):
-        """Genera un prompt completo para IA (orden + JSON base + plantilla de salida),
-        aplicando DRY: toda la información de contexto vive en el JSON; 'Condiciones' solo define
-        formato y cantidades. Maneja fechas/JSON seguros, deduplica URLs y evita llaves conflictivas.
-        """
-        import json
+    def generate_prompt(self):
 
         def _safe_date_str(d):
             # Devuelve ISO (YYYY-MM-DD) o "" si es None
@@ -378,7 +626,6 @@ class GeneradorContenidoFlujo(models.Model):
 
             metricas = _try_json_loads(record.metricas)
 
-            # --- JSON base (ÚNICA FUENTE de reglas de contexto) ---
             data = {
                 "cliente": {
                     "nombre": partner.name or "",
@@ -418,16 +665,12 @@ class GeneradorContenidoFlujo(models.Model):
                 },
             }
 
-            # --- JSON base compacto ---
             json_base = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
-            # --- Prompt contextual (DRY: no repetir lo que ya está en el JSON) ---
             orden = ("Eres un agente de marketing especializado en el sector indicado. "
                      "Lee el siguiente JSON y, sin reescribirlo ni resumirlo, úsalo como única fuente de verdad.\n\n"
                      f"{json_base}\n\n")
 
-            # --- Plantilla de salida: SOLO formato + cantidades; remite a `contexto_creativo` ---
-            # OJO: llaves escapadas {{ }} por uso de .format()
             instruccion_json = (
                 "A partir del contexto anterior, genera un JSON estructurado con el plan de publicaciones del periodo. "
                 "Devuelve ÚNICAMENTE el JSON con la siguiente estructura:\n\n"

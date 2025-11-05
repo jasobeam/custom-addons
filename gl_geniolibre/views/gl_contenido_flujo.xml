@@ -115,22 +115,22 @@
 
                     <!-- Botones principales -->
                     <div class="oe_button_box">
-                        <button name="action_previous_stage"
+                        <button name="previous_stage"
                                 type="object"
                                 string="Volver"
                                 class="btn-secondary"
                                 invisible="etapa == 'ideas'"/>
-                        <button name="action_crear_ideas"
+                        <button name="crear_ideas"
                                 type="object"
                                 string="Generar Propuestas de Contenido"
                                 class="btn-primary"
                                 invisible="etapa != 'ideas'"/>
-                        <button name="action_refinar_propuestas"
+                        <button name="refinar_propuestas"
                                 type="object"
                                 string="Refinar Propuestas"
                                 class="btn-primary"
                                 invisible="etapa != 'reunion'"/>
-                        <button name="action_generar_tareas"
+                        <button name="generar_tareas"
                                 type="object"
                                 string="Generar Tareas"
                                 class="btn-primary"
@@ -185,13 +185,13 @@
                                     <field name="publico_objetivo"/>
 
                                     <field name="dias_festivos_referencia" colspan="1"/>
-                                    <button name="action_sugerir_dias_festivos"
+                                    <button name="sugerir_dias_festivos"
                                             type="object"
                                             string="Sugerir Festivos"
                                             class="btn-secondary"
                                             icon="fa-calendar-o"/>
 
-                                    <button name="action_generate_prompt"
+                                    <button name="generate_prompt"
                                             type="object"
                                             string="Generar Prompt"
                                             class="btn-primary"
@@ -219,35 +219,77 @@
                     </notebook>
 
                     <!-- 🟦 Etapa: Reunión -->
-                    <group string="Reunión con Cliente" invisible="etapa != 'reunion'">
-                        <field name="feedback_cliente"/>
-                        <field name="anotaciones_cliente"/>
-                        <field name="publicacion_ids"/>
-                        <button name="action_ver_calendario"
+                    <notebook invisible="etapa != 'reunion'">
+                        <page string="Reunión con Cliente">
+                            <group>
+                                <field name="feedback_cliente"/>
+                                <field name="anotaciones_cliente"/>
+                                <field name="publicacion_ids"/>
+                                <button name="ver_calendario"
+                                        type="object"
+                                        string="Ver Calendario"
+                                        class="btn-secondary"
+                                        icon="fa-calendar"/>
+                                <button name="refinar_propuestas"
+                                        type="object"
+                                        string="Generar Prompt"
+                                        class="btn-primary"
+                                        icon="fa-wrench"/>
+                                <button name="aceptar_refinamiento"
+                                        type="object"
+                                        string="Aplicar Cambios"
+                                        class="btn-success"
+                                        icon="fa-check"/>
+
+                            </group>
+                        </page>
+                        <page string="Prompt de Refinamiento">
+                            <group>
+                                <field name="promtp_refinamiento"/>
+
+                            </group>
+                        </page>
+                        <page string="Respuesta IA de Refinamiento">
+                            <group>
+                                <field name="promtp_respuesta_refinamiento"/>
+
+                            </group>
+                        </page>
+
+                    </notebook>
+
+                    <!-- 🟧 Etapa: Refinamiento -->
+                    <group string="Refinamiento" invisible="etapa != 'refinar'">
+                        <field name="publicacion_ids" create="false"/>
+                        <button name="ver_calendario"
                                 type="object"
                                 string="Ver Calendario"
                                 class="btn-secondary"
                                 icon="fa-calendar"/>
-                    </group>
 
-                    <!-- 🟧 Etapa: Refinamiento -->
-                    <group string="Refinamiento" invisible="etapa != 'refinar'">
-                        <field name="plan_base"/>
-                        <field name="plan_refinado"/>
                     </group>
 
                     <!-- 🟥 Etapa: Publicaciones -->
                     <group string="Publicaciones" invisible="etapa != 'publicaciones'">
-                        <field name="publicaciones_finales"/>
-                        <field name="propuestas_ids">
-                            <list editable="bottom">
-                                <field name="titulo"/>
-                                <field name="copy"/>
-                                <field name="hashtags"/>
-                                <field name="aprobado"/>
-                            </list>
-                        </field>
+                        <div style="text-align:center;padding:50px;">
+                            <h2 style="font-weight:600; color:#2c3e50; margin-bottom:12px;">
+                                🎯 El proceso de generación de contenido ha concluido
+                            </h2>
+                            <p style="font-size:15px; color:#6c757d; margin-bottom:25px;">
+                                Todas las ideas y publicaciones han sido generadas con éxito.
+                                Puedes revisar las tareas creadas dentro del proyecto asignado.
+                            </p>
+
+                            <button type="action"
+                                    name="%(project.action_view_task)d"
+                                    context="{'search_default_project_id': project_id, 'default_project_id': project_id}"
+                                    class="btn btn-primary btn-lg"
+                                    style="padding:14px 35px; font-size:16px; border-radius:8px;">🔗 Ver proyecto
+                            </button>
+
+                        </div>
                     </group>
+
                 </sheet>
 
                 <chatter/>
@@ -287,7 +329,7 @@
         <field name="name">gl.contenido.propuesta.list</field>
         <field name="model">gl.contenido.propuesta</field>
         <field name="arch" type="xml">
-            <list string="Propuestas de Contenido" create="false">
+            <list string="Propuestas de Contenido" create="true">
                 <field name="titulo"/>
                 <field name="tipo"/>
                 <field name="fecha_publicacion"/>
@@ -320,18 +362,17 @@
                     </group>
 
                     <notebook>
-                        <page string="Descripción y Copy">
+                        <page string="Contenido de la Publicación">
                             <group col="2">
                                 <field name="descripcion" colspan="2"/>
                                 <field name="texto_en_diseno"/>
                                 <field name="copy" colspan="2"/>
-                            </group>
-                        </page>
-
-                        <page string="Hashtags y Recomendaciones">
-                            <group col="2">
                                 <field name="hashtags" colspan="2"/>
                                 <field name="recomendaciones" colspan="2"/>
+                            </group>
+                        </page><page string="Cambios Solicitados">
+                            <group col="2">
+                                <field name="cambios" colspan="2"/>
                             </group>
                         </page>
                     </notebook>
@@ -357,6 +398,7 @@
                 <field name="texto_en_diseno"/>
                 <field name="copy"/>
                 <field name="recomendaciones"/>
+                <field name="cambios"/>
                 <field name="aprobado"/>
             </calendar>
         </field>
