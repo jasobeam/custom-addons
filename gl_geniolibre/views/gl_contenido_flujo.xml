@@ -257,7 +257,6 @@
                         </page>
 
                     </notebook>
-
                     <!-- 🟧 Etapa: Refinamiento -->
                     <group string="Refinamiento" invisible="etapa != 'refinar'">
                         <field name="publicacion_ids" create="false"/>
@@ -268,7 +267,6 @@
                                 icon="fa-calendar"/>
 
                     </group>
-
                     <!-- 🟥 Etapa: Publicaciones -->
                     <group string="Publicaciones" invisible="etapa != 'publicaciones'">
                         <div style="text-align:center;padding:50px;">
