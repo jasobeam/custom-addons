@@ -11,7 +11,8 @@ from datetime import datetime, timedelta, timezone, time
 from collections import defaultdict
 from google.ads.googleads.client import GoogleAdsClient
 
-API_VERSION = "v23.0"
+API_VERSION = "v24.0"
+LinkedIn_Version = "202505"
 
 
 class red_social_reporte(models.Model):
@@ -386,24 +387,24 @@ class project_project(models.Model):
 
     def get_facebook_data(self, since, until):
         BASE_URL = f"https://graph.facebook.com/{API_VERSION}/{self.partner_facebook_page_id}"
+        print("Iniciamos Facebook Data")
 
-        metrics = [
-            'page_impressions',
-            'page_views_total',
-            'page_fans',
-            'page_fan_adds',
-            'page_fan_removes',
-            'page_impressions_unique',
+        # ==========================
+        # 📊 MÉTRICAS DE PÁGINA (v24)
+        # ==========================
+        page_metrics = [
+            'page_media_view',  # reemplaza impressions
             'page_post_engagements',
-            'page_posts_impressions'
+            'page_follows',  # reemplaza page_fans
+            'page_views_total',  # sigue siendo válida
         ]
 
         params = {
-            'metric': ','.join(metrics),
+            'metric': ','.join(page_metrics),
             'since': since,
             'until': until,
-            'access_token': self.partner_page_access_token,
             'period': 'day',
+            'access_token': self.partner_page_access_token,
         }
 
         all_data = []
@@ -411,12 +412,13 @@ class project_project(models.Model):
         original_until = int(until)
 
         while url:
-            response = requests.get(url, params=params if '?' not in url else {}, timeout=10)
+            response = requests.get(url, params=params if '?' not in url else {}, timeout=15)
             response.raise_for_status()
+            print("While URL", response.json())
             result = response.json()
 
-
             all_data.extend(result.get('data', []))
+
             next_url = result.get('paging', {}).get('next')
             if next_url:
                 parsed_url = urlparse(next_url)
@@ -429,15 +431,21 @@ class project_project(models.Model):
             else:
                 url = None
 
-        # NO sumar aquí → devolver los values crudos
+        # 🔹 valores crudos por métrica
         totals = {m['name']: m.get('values', []) for m in all_data}
 
-        # Posts crudos de este chunk
+        # ==========================
+        # 🧾 POSTS + INSIGHTS (v24)
+        # ==========================
         post_url = f"{BASE_URL}/feed"
         post_params = {
-            'fields': 'id,message,shares,attachments,created_time,full_picture,comments.metric(total_count),'
-                      'insights.metric(post_impressions,post_impressions_organic,post_impressions_paid,post_reactions_by_type_total),'
-                      'is_published',
+            'fields': ('id,message,shares,attachments,created_time,full_picture,'
+                       'comments.metric(total_count),'
+                       'insights.metric('
+                       'post_media_view,'  # reemplaza impressions
+                       'post_reactions_by_type_total'
+                       '),'
+                       'is_published'),
             'since': since,
             'until': until,
             'access_token': self.partner_page_access_token,
@@ -446,18 +454,18 @@ class project_project(models.Model):
         posts_matrix = []
         post_type_data = defaultdict(lambda: {
             'posts': 0,
-            'reach': 0,
-            'organic_reach': 0,
-            'paid_reach': 0,
+            'views': 0,
             'reactions': 0,
             'comments': 0,
-            'shares': 0
+            'shares': 0,
         })
 
         page_count = 0
         max_pages = 50
+
         while post_url and page_count < max_pages:
-            post_response = requests.get(post_url, params=post_params, timeout=15)
+            post_response = requests.get(post_url, params=post_params, timeout=20)
+            print("while post_url", post_response.json())
             post_response.raise_for_status()
             post_result = post_response.json()
 
@@ -467,26 +475,24 @@ class project_project(models.Model):
                     {}
                 ])
                 post_type = attachments[0].get('type', 'post').lower() if attachments else 'post'
+
                 insights = post.get('insights', {}).get('data', [])
                 insights_dict = {i['name']: i['values'][0]['value'] for i in insights if i.get('values')}
 
-                reach = insights_dict.get('post_impressions', 0)
-                organic_reach = insights_dict.get('post_impressions_organic', 0)
-                paid_reach = insights_dict.get('post_impressions_paid', 0)
-                total_shares = post.get('shares', {}).get('count', 0)
-                total_comments = post.get('comments', {}).get('summary', {}).get('total_count', 0)
+                views = insights_dict.get('post_media_view', 0)
                 reactions_by_type = insights_dict.get('post_reactions_by_type_total', {})
                 total_reactions = sum(reactions_by_type.values()) if isinstance(reactions_by_type, dict) else 0
 
+                total_comments = post.get('comments', {}).get('summary', {}).get('total_count', 0)
+                total_shares = post.get('shares', {}).get('count', 0)
+
                 posts_matrix.append({
                     'type': post_type,
-                    'reach': reach,
-                    'organic_reach': organic_reach,
-                    'paid_reach': paid_reach,
+                    'views': views,
                     'reactions': total_reactions,
                     'reactions_by_type': reactions_by_type,
                     'picture_url': post.get('full_picture', ''),
-                    'message': (post.get('message', '') or '')[:50],
+                    'message': (post.get('message', '') or '')[:100],
                     'created_time': post.get('created_time', ''),
                     'post_id': post.get('id', ''),
                     'comments': total_comments,
@@ -494,7 +500,7 @@ class project_project(models.Model):
                 })
 
                 post_type_data[post_type]['posts'] += 1
-                post_type_data[post_type]['reach'] += reach
+                post_type_data[post_type]['views'] += views
                 post_type_data[post_type]['reactions'] += total_reactions
                 post_type_data[post_type]['comments'] += total_comments
                 post_type_data[post_type]['shares'] += total_shares
@@ -503,11 +509,14 @@ class project_project(models.Model):
             post_params = {}
             page_count += 1
 
-        resumen_por_tipo = {ptype: data for ptype, data in post_type_data.items()}
+        resumen_por_tipo = dict(post_type_data)
+        print("Totals", totals)
+        print("Resumen", resumen_por_tipo)
+        print("top_posts", posts_matrix)
         return {
             'totals': totals,
             'post_type_summary': resumen_por_tipo,
-            'top_posts': posts_matrix,  # ⚠️ aquí se devuelve todo, no solo top 3 (merge los ordena luego)
+            'top_posts': posts_matrix,
         }
 
     def get_instagram_data(self, since, until):
@@ -605,7 +614,7 @@ class project_project(models.Model):
                     'thumbnail_url': post.get('thumbnail_url'),
                     'permalink': post.get('permalink'),
                     'media_url': post.get('media_url'),
-                    'caption': post.get('caption', '')[:50],
+                    'caption': post.get('caption', '')[:100],
                     'created_at': post.get('timestamp'),
                     'reach': insights.get('reach', 0),
                     'impressions': insights.get('impressions', 0),
@@ -1022,30 +1031,331 @@ class project_project(models.Model):
                 },
             }
 
+    def get_linkedin_data(self, since, until):
+        self.ensure_one()
+        access_token = (self.env["ir.config_parameter"].sudo().get_param("linkedin.access_token"))
+        org_id_raw = self.partner_id.id_linkedin_organization
+        since_ms = int(since) * 1000
+        until_ms = int(until) * 1000
+
+        if not access_token:
+            raise ValidationError("Falta el Access Token de LinkedIn en Configuración General.")
+        if not org_id_raw:
+            raise ValidationError("Falta el ID de Organización de LinkedIn en el cliente.")
+
+        org_urn = f"urn%3Ali%3Aorganization%3A{org_id_raw}"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "LinkedIn-Version": LinkedIn_Version,
+            "X-RestLi-Protocol-Version": "2.0.0",
+            "Content-Type": "application/json",
+        }
+        # ================================================
+        # 1️⃣ OBTENER SHARES (máximo 100 publicaciones)
+        # ================================================
+        print("ORG RAW:", repr(org_id_raw))
+
+        url_shares = f"https://api.linkedin.com/rest/shares?q=owners&owners=List(urn:li:organization:{org_id_raw})&count=100"
+        url = f"https://api.linkedin.com/rest/organizations/{org_urn}/posts?count=100"
+        print(url)
+        try:
+            r = requests.get(url, headers=headers, timeout=20)
+            print(r.json())
+            # Ignorar 404 (no hay posts)
+            if r.status_code == 404:
+                return []
+
+            r.raise_for_status()
+            data = r.json()
+
+        except Exception as e:
+            print("SHARES error:", e)
+            return []
+
+        from datetime import datetime
+
+        posts = []
+
+        for el in data.get("elements", []):
+            created = el.get("created", {}).get("time", 0)
+
+            # Rango de fechas
+            if not (since_ms <= created <= until_ms):
+                continue
+
+            # Fecha legible
+            created_dt = datetime.utcfromtimestamp(created / 1000)
+
+            # Texto del post
+            text = el.get("text", {}).get("text", "")
+
+            # Media (imágenes, videos, links)
+            media = el.get("content", {}).get("contentEntities", [])
+
+            posts.append({
+                "type": "SHARE",
+                "urn": el.get("id", ""),
+                "created_timestamp": created,
+                "created_date": str(created_dt),
+                "text": text,
+                "media": media,
+            })
+
+        print(posts)
+        exit()
+
+
+
+        # --- 1. organizationPageStatistics ---
+        page_views_total = 0
+        page_unique_views_total = 0
+        page_custom_button_clicks = 0
+        try:
+            url = (f"https://api.linkedin.com/rest/organizationPageStatistics"
+                   f"?q=organization&organization={org_urn}"
+                   f"&timeIntervals=(timeRange:(start:{since_ms},end:{until_ms + 86400}),timeGranularityType:DAY)")
+            resp = requests.get(url, headers=headers, timeout=20)
+            print(resp)
+            resp.raise_for_status()
+            data = resp.json()
+            print(data)
+            for el in data.get("elements", []):
+                total_stats = el.get("totalPageStatistics", {})
+
+                views = total_stats.get("views", {})
+                all_views = views.get("allPageViews", {}) or {}
+                page_views_total += int(all_views.get("pageViews", 0) or 0)
+                page_unique_views_total += int(all_views.get("uniquePageViews", 0) or 0)
+
+                clicks = total_stats.get("clicks", {}) or {}
+                for btn in clicks.get("desktopCustomButtonClickCounts", []) or []:
+                    page_custom_button_clicks += int(btn.get("clicks", 0) or 0)
+                for btn in clicks.get("mobileCustomButtonClickCounts", []) or []:
+                    page_custom_button_clicks += int(btn.get("clicks", 0) or 0)
+
+        except Exception as e:
+            print(f"⚠️ No se pudo obtener organizationPageStatistics: {e}")
+
+        # --- 2. organizationalEntityShareStatistics ---
+        share_data = {}
+        try:
+            url_shares = (f"https://api.linkedin.com/rest/organizationalEntityShareStatistics"
+                          f"?q=organizationalEntity&organizationalEntity={org_urn}"
+                          f"&timeIntervals=(timeRange:(start:{since_ms},end:{until_ms + 86400}),timeGranularityType:DAY)")
+            resp_shares = requests.get(url_shares, headers=headers, timeout=20)
+            resp_shares.raise_for_status()
+            share_data = resp_shares.json()
+        except Exception as e:
+            print(f"⚠️ No se pudo obtener organizationalEntityShareStatistics: {e}")
+            share_data = {}
+
+        # --- 3. Followers: período ---
+        total_followers = 0
+        new_followers_period = 0
+        unfollows_period = 0
+
+        try:
+            url_follow_period = (f"https://api.linkedin.com/rest/organizationalEntityFollowerStatistics"
+                                 f"?q=organizationalEntity&organizationalEntity={org_urn}"
+                                 f"&timeIntervals=(timeRange:(start:{since_ms},end:{until_ms + 86400}),timeGranularityType:DAY)")
+            resp_period = requests.get(url_follow_period, headers=headers, timeout=20)
+            resp_period.raise_for_status()
+            period_data = resp_period.json()
+            for el in period_data.get("elements", []):
+                gains = el.get("followerGains", {}) or {}
+                counts = el.get("followerCounts", {}) or {}
+
+                new_followers_period += int(gains.get("organicFollowerGain", 0) or 0)
+                new_followers_period += int(gains.get("paidFollowerGain", 0) or 0)
+                new_followers_period += int(counts.get("newFollowerCount", 0) or 0)
+                unfollows_period += int(counts.get("unfollowCount", 0) or 0)
+
+        except Exception as e:
+            print(f"⚠️ No se pudo obtener seguidores del período: {e}")
+
+        # --- 4. Followers: totales ---
+        try:
+            url_follow_total = (f"https://api.linkedin.com/rest/organizationalEntityFollowerStatistics"
+                                f"?q=organizationalEntity&organizationalEntity={org_urn}")
+            resp_total = requests.get(url_follow_total, headers=headers, timeout=20)
+            resp_total.raise_for_status()
+            total_data = resp_total.json()
+
+            total_followers = 0
+            for el in total_data.get("elements", []):
+                countries = el.get("followerCountsByGeoCountry", [])
+                for c in countries:
+                    total_followers += int(c.get("followerCounts", {}).get("organicFollowerCount", 0) or 0)
+
+        except Exception as e:
+            print(f"⚠️ No se pudo obtener followers totales: {e}")
+
+        # =====================================================================
+        # 2️⃣ OPERACIONES Y PROCESAMIENTO
+        # =====================================================================
+
+        total_impressions = 0
+        total_clicks = 0
+        total_engagement = 0.0
+        total_reach = 0
+        tipo_publicaciones = {}
+        posts = []
+
+        elements = share_data.get("elements", [])
+        for el in elements:
+            stats = el.get("totalShareStatistics", {})
+            share_urn = el.get("share", "")
+            ugc_urn = ""
+            type_name = "Post"
+
+            value_obj = el.get("value") or el.get("reference") or el.get("activity") or {}
+            if isinstance(value_obj, dict):
+                possible_urn = value_obj.get("urn") or value_obj.get("entity") or ""
+                if "ugcPost" in str(possible_urn):
+                    ugc_urn = possible_urn
+
+            media_type = (el.get("shareMediaCategory") or el.get("content", {}).get("shareMediaCategory") or "").lower()
+
+            if media_type:
+                if "video" in media_type:
+                    type_name = "Video"
+                elif "image" in media_type:
+                    type_name = "Imagen"
+                elif "carousel" in media_type or "document" in media_type:
+                    type_name = "Carrusel"
+                elif "article" in media_type:
+                    type_name = "Documento"
+                elif "link" in media_type:
+                    type_name = "Enlace"
+
+            time_range = el.get("timeRange", {})
+            unique_impressions = stats.get("uniqueImpressionsCount", 0)
+            click_count = stats.get("clickCount", 0)
+            engagement_rate = stats.get("engagement", 0.0)
+
+            total_impressions += stats.get("impressionCount", 0)
+            total_clicks += click_count
+            total_engagement += engagement_rate
+            total_reach += stats.get("impressionCount", 0)
+
+            tipo_publicaciones.setdefault(type_name, {
+                "posts": 0,
+                "reach": 0,
+                "organic_reach": 0,
+                "paid_reach": 0,
+                "unique_impressions": 0,
+                "reactions": 0,
+                "comments": 0,
+                "shares": 0,
+                "clicks": 0,
+                "engagement_total": 0.0,
+            })
+            tipo_publicaciones[type_name]["posts"] += 1
+            tipo_publicaciones[type_name]["reach"] += stats.get("impressionCount", 0)
+            tipo_publicaciones[type_name]["reactions"] += stats.get("likeCount", 0)
+            tipo_publicaciones[type_name]["comments"] += stats.get("commentCount", 0)
+            tipo_publicaciones[type_name]["shares"] += stats.get("shareCount", 0)
+            tipo_publicaciones[type_name]["clicks"] += click_count
+            tipo_publicaciones[type_name]["engagement_total"] += engagement_rate
+            tipo_publicaciones[type_name]["organic_reach"] += stats.get("impressionCount", 0)
+            tipo_publicaciones[type_name]["paid_reach"] += 0
+            tipo_publicaciones[type_name]["unique_impressions"] += unique_impressions
+
+            posts.append({
+                "content": f"Publicación {share_urn[-8:] if share_urn else ''}",
+                "type": type_name,
+                "reach": stats.get("impressionCount", 0),
+                "organic_reach": stats.get("impressionCount", 0),
+                "paid_reach": 0,
+                "reactions": stats.get("likeCount", 0),
+                "comments": stats.get("commentCount", 0),
+                "shares": stats.get("shareCount", 0),
+                "clicks": click_count,
+                "unique_impressions": unique_impressions,
+                "engagement": engagement_rate,
+                "picture_url": "",
+                "message": f"Post {share_urn[-8:] if share_urn else ''}",
+                "timeRange": time_range,
+                "share_urn": share_urn,
+                "ugc_urn": ugc_urn,
+            })
+
+        total_impressions += page_views_total
+
+        for el in share_data.get("elements", []):
+            stats = el.get("totalShareStatistics", {}) or {}
+            reaction_counts = stats.get("reactionTypeCounts", {}) or {}
+            for val in reaction_counts.values():
+                tipo_publicaciones["Post"]["reactions"] += int(val or 0)
+
+        # =====================================================================
+        # 3️⃣ ESTRUCTURA FINAL
+        # =====================================================================
+
+        linkedin_data = {
+            "totals": {
+                "page_impressions": total_impressions,
+                "page_views_total": page_views_total,
+                "page_views_unique": page_unique_views_total,
+                "page_followers": total_followers,
+                "page_new_followers": new_followers_period,
+                "page_unfollows": unfollows_period,
+                "page_impressions_unique": page_unique_views_total,
+                "page_post_engagements": round(total_engagement, 2),
+                "page_posts_impressions": total_impressions,
+                "page_custom_button_clicks": page_custom_button_clicks,
+                "page_clicks_total_from_shares": total_clicks,
+            },
+            "post_type_summary": tipo_publicaciones,
+            "posts": posts,
+            "organization_id": org_id_raw,
+            "time_range": {
+                "since_ms": since_ms,
+                "until_ms": until_ms,
+            }
+        }
+        return linkedin_data
+
     def action_generate_iareport(self):
         self.ensure_one()
 
-        # ⚡ Llamar a la función normal de reporte pero en modo JSON
-        result = self.with_context(raw_json=True).action_generate_report()
+        try:
+            # ⚡ Llamar a la función normal de reporte pero en modo JSON
+            result = self.with_context(raw_json=True).action_generate_report()
 
-        data = {}
-        if isinstance(result, dict) and "data" in result:
-            data = result["data"]
+            data = {}
+            if isinstance(result, dict) and "data" in result:
+                data = result["data"]
 
-        if not data:
-            raise ValidationError("No se generaron datos en el reporte IA.")
+            if not data:
+                raise ValidationError("No se generaron datos en el reporte IA.")
 
-        # 🔎 Resumir usando la función estática
-        resumen = resumir_reporte(data)
+            # 🔎 Resumir usando la función estática
+            resumen = resumir_reporte(data)
 
-        json_text = json.dumps(resumen, indent=2, ensure_ascii=False)
+            json_text = json.dumps(resumen, indent=2, ensure_ascii=False)
 
-        # 📋 Acción cliente → copiar al portapapeles
-        return {
-            "type": "ir.actions.client",
-            "tag": "clipboard_copy",
-            "params": {"content": json_text},
-        }
+            # 📋 Acción cliente → copiar al portapapeles
+            return {
+                "type": "ir.actions.client",
+                "tag": "clipboard_copy",
+                "params": {
+                    "content": json_text
+                },
+            }
+
+        except ValidationError:
+            # ⛔ errores funcionales conocidos → se relanzan tal cual
+            raise
+
+        except Exception as e:
+            # 🧨 cualquier otro error inesperado
+            error_detalle = str(e)
+
+            # (opcional) si quieres ver el traceback completo en el error
+            # error_detalle = traceback.format_exc()
+
+            raise ValidationError(f"Error al generar el reporte IA:\n\n{error_detalle}")
 
     def action_generate_report(self):
         self.ensure_one()
@@ -1103,6 +1413,9 @@ class project_project(models.Model):
             'TikTok': [
                 'tiktok_data'
             ],
+            'LinkedIn': [
+                'linkedin_data',
+            ],
         }
 
         # Lista completa de posibles fuentes
@@ -1137,6 +1450,12 @@ class project_project(models.Model):
                 'fetch_method': self.get_tiktok_data,
                 'data_key': 'tiktok_data',
             },
+            {
+                'name': 'LinkedIn',
+                'check': self.partner_id.id_linkedin_organization,
+                'fetch_method': self.get_linkedin_data,
+                'data_key': 'linkedin_data',
+            },
         ]
 
         selected_sources = [ds for ds in data_sources if
@@ -1148,6 +1467,7 @@ class project_project(models.Model):
             'meta_ads_data': {},
             'google_ads_data': {},
             'tiktok_data': {},
+            'linkedin_data': {},
             'report_period': {
                 'since': self.date_start.strftime('%Y-%m-%d'),
                 'until': self.date.strftime('%Y-%m-%d'),
@@ -1182,6 +1502,7 @@ class project_project(models.Model):
                 chunk_end_ts = int(chunk_end_dt.timestamp())
 
                 chunks.append((chunk_start_ts, chunk_end_ts))
+                print("fechas en chunk",chunk_start_ts,chunk_end_ts)
 
             # Iterar sobre las fuentes seleccionadas
             for source in selected_sources:
@@ -1208,6 +1529,8 @@ class project_project(models.Model):
                                 data[source['data_key']] = merge_final_metaads_data(chunk_results)
                             elif source['data_key'] == 'instagram_data':
                                 data[source['data_key']] = merge_final_instagram_data(chunk_results)
+                            elif source['data_key'] == 'linkedin_data':  # LINKEDIN
+                                data[source['data_key']] = merge_final_linkedin_data(chunk_results)
                             messages.append(f"✅ {source['name']}: datos obtenidos en chunks.")
                         else:
                             messages.append(f"⚠️ {source['name']}: sin datos en los bloques.")
@@ -1221,11 +1544,12 @@ class project_project(models.Model):
                                 "facebook_data": merge_final_facebook_data,
                                 "meta_ads_data": merge_final_metaads_data,
                                 "instagram_data": merge_final_instagram_data,
+                                "linkedin_data": merge_final_linkedin_data,  #
                             }
                             if source['data_key'] in merger_map:
                                 data[source['data_key']] = merger_map[source['data_key']]([
-                                                                                              fetched_data
-                                                                                          ])
+                                    fetched_data
+                                ])
                             else:
                                 data[source['data_key']] = fetched_data
                             messages.append(f"✅ {source['name']}: datos obtenidos.")
@@ -1236,16 +1560,21 @@ class project_project(models.Model):
                     messages.append(f"❌ {source['name']}: error - {str(e)}")
 
             if has_errors:
-                return {
-                    'type': 'ir.actions.client',
-                    'tag': 'display_notification',
-                    'params': {
-                        'title': "Reporte generado con advertencias",
-                        'message': "\n\n".join(messages),
-                        'type': 'warning',
-                        'sticky': True,
-                    },
-                }
+                if has_errors:
+                    if self.env.context.get("raw_json"):
+                        raise ValidationError("\n".join(messages))
+                    else:
+                        return {
+                            'type': 'ir.actions.client',
+                            'tag': 'display_notification',
+                            'params': {
+                                'title': "Reporte generado con advertencias",
+                                'message': "\n\n".join(messages),
+                                'type': 'warning',
+                                'sticky': True,
+                            },
+                        }
+
             if self.env.context.get("raw_json"):
                 return {
                     "data": data
@@ -1254,7 +1583,11 @@ class project_project(models.Model):
                 'data': data
             })
 
+
         except Exception as e:
+            if self.env.context.get("raw_json"):
+                raise
+
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
@@ -1265,6 +1598,7 @@ class project_project(models.Model):
                     "sticky": True,
                 },
             }
+
 
 def resumir_reporte(data: dict) -> dict:
     """Compacta el reporte para IA: métricas clave + top posts/campañas"""
@@ -1374,6 +1708,7 @@ def resumir_reporte(data: dict) -> dict:
 
     return resumen
 
+
 def merge_final_google_ads_data(data_list):
     merged = {
         'summary': {
@@ -1470,6 +1805,7 @@ def merge_final_google_ads_data(data_list):
 
     return merged
 
+
 def merge_final_tiktok_data(chunk_results):
     print(chunk_results)
     try:
@@ -1511,6 +1847,7 @@ def merge_final_tiktok_data(chunk_results):
         return {
             "error": f"❌ Error al combinar datos de TikTok: {str(e)}"
         }
+
 
 def merge_final_metaads_data(chunks):
     """
@@ -1589,88 +1926,131 @@ def merge_final_metaads_data(chunks):
         'campaigns': all_campaigns
     }
 
+
 def merge_final_facebook_data(chunks):
     from datetime import datetime
 
     merged = {
         'totals': {
-            'page_impressions': 0,
+            'page_media_view': 0,
             'page_views_total': 0,
-            'page_fans': 0,
-            'page_fan_adds': 0,
-            'page_fan_removes': 0,
-            'page_impressions_unique': 0,
             'page_post_engagements': 0,
-            'page_posts_impressions': 0
+            'page_follows': 0,   # reemplaza page_fans
         },
         'post_type_summary': {},
         'top_posts': []
     }
 
-    all_page_fans = []  # Para recolectar todos los valores de page_fans
+    all_page_follows = []  # para quedarnos con el último valor
 
     for chunk in chunks:
         totals = chunk.get('totals', {})
 
-        # Sumar valores de métricas específicas
+        # ==========================
+        # 📊 TOTALES DE PÁGINA
+        # ==========================
         for key in [
-            'page_impressions',
+            'page_media_view',
             'page_views_total',
             'page_post_engagements',
-            'page_impressions_unique',
-            'page_posts_impressions',
-            'page_fan_adds',
-            'page_fan_removes'
         ]:
             values = totals.get(key, [])
             for v in values:
                 merged['totals'][key] += v.get('value', 0)
 
-        # Recolectar todos los page_fans para tomar el último valor
-        page_fans = totals.get('page_fans', [])
-        for fan_data in page_fans:
-            value = fan_data.get('value', 0)
-            end_time_str = fan_data.get('end_time', '')
-            if end_time_str:
+        # page_follows → tomar último valor cronológico
+        follows_values = totals.get('page_follows', [])
+        for f in follows_values:
+            value = f.get('value', 0)
+            end_time = f.get('end_time')
+            if end_time:
                 try:
-                    end_time_dt = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
-                    all_page_fans.append((end_time_dt, value))
-                except:
-                    all_page_fans.append((datetime.min, value))
+                    dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                except Exception:
+                    dt = datetime.min
             else:
-                all_page_fans.append((datetime.min, value))
+                dt = datetime.min
+            all_page_follows.append((dt, value))
 
-        # Resumen por tipo de post
+        # ==========================
+        # 🧾 RESUMEN POR TIPO DE POST
+        # ==========================
         for post_type, stats in chunk.get('post_type_summary', {}).items():
             if post_type not in merged['post_type_summary']:
                 merged['post_type_summary'][post_type] = {
                     'posts': 0,
-                    'reach': 0,
-                    'organic_reach': 0,
-                    'paid_reach': 0,
+                    'views': 0,
                     'reactions': 0,
                     'comments': 0,
                     'shares': 0
                 }
-            for k in stats:
-                merged['post_type_summary'][post_type][k] += stats[k]
 
-        # Top posts (evitar duplicados por post_id)
+            for k in merged['post_type_summary'][post_type]:
+                merged['post_type_summary'][post_type][k] += stats.get(k, 0)
+
+        # ==========================
+        # ⭐ TOP POSTS (sin duplicar)
+        # ==========================
+        existing_ids = {p.get('post_id') for p in merged['top_posts']}
+
         for post in chunk.get('top_posts', []):
             post_id = post.get('post_id')
-            existing_ids = [p.get('post_id') for p in merged['top_posts']]
-            if post_id not in existing_ids:
+            if post_id and post_id not in existing_ids:
                 merged['top_posts'].append(post)
+                existing_ids.add(post_id)
 
-    # Tomar el último valor de page_fans (más reciente)
-    if all_page_fans:
-        all_page_fans.sort(key=lambda x: x[0])  # Ordenar por fecha
-        merged['totals']['page_fans'] = all_page_fans[-1][1]
+    # ==========================
+    # 📌 ÚLTIMO VALOR DE FOLLOWERS
+    # ==========================
+    if all_page_follows:
+        all_page_follows.sort(key=lambda x: x[0])
+        merged['totals']['page_follows'] = all_page_follows[-1][1]
 
-    # Ordenar top 3 posts por reach
-    merged['top_posts'] = sorted(merged['top_posts'], key=lambda x: x.get('reach', 0), reverse=True)[:5]
+    # ==========================
+    # 🏆 TOP 5 POSTS POR VIEWS
+    # ==========================
+    merged['top_posts'] = sorted(
+        merged['top_posts'],
+        key=lambda x: x.get('views', 0),
+        reverse=True
+    )[:5]
 
+    def calculate_followers_diff(page_follows_values):
+        """
+        page_follows_values = [
+            {'value': 1200, 'end_time': '...'},
+            ...
+        ]
+        """
+        if not page_follows_values:
+            return 0
+
+        # ordenar por fecha
+        sorted_values = sorted(page_follows_values, key=lambda x: x.get('end_time', ''))
+
+        start_value = sorted_values[0].get('value', 0)
+        end_value = sorted_values[-1].get('value', 0)
+
+        return end_value - start_value
+
+    followers_values = totals.get('page_follows', [])
+    followers_diff = calculate_followers_diff(followers_values)
+
+    merged['totals']['followers_diff'] = followers_diff
+    # ==========================
+    # 📈 ENGAGEMENT RATE
+    # ==========================
+    media_views = merged['totals'].get('page_media_view', 0)
+    engagements = merged['totals'].get('page_post_engagements', 0)
+
+    if media_views > 0:
+        engagement_rate = round((engagements / media_views) * 100, 2)
+    else:
+        engagement_rate = 0.0
+
+    merged['totals']['engagement_rate'] = engagement_rate
     return merged
+
 
 def merge_final_instagram_data(chunks):
     """
@@ -1766,3 +2146,64 @@ def merge_final_instagram_data(chunks):
         'summary_by_type': summary_by_type,
         'top_posts': top_posts,
     }
+
+
+def merge_final_linkedin_data(chunk_results):
+    final = {}
+    last_time_range = None
+
+    # --- 1️⃣ Combinar todos los chunks ---
+    for chunk in chunk_results:
+        if not chunk:
+            continue
+
+        for key, value in chunk.items():
+
+            # --- Guardar el último time_range ---
+            if key == "time_range":
+                last_time_range = value
+                continue
+
+            # --- Sumar métricas numéricas ---
+            if isinstance(value, (int, float)):
+                final[key] = final.get(key, 0) + value
+
+            # --- Diccionarios (ej: totals, post_type_summary) ---
+            elif isinstance(value, dict):
+                if key not in final:
+                    final[key] = {}
+                for k2, v2 in value.items():
+                    if isinstance(v2, (int, float)):
+                        final[key][k2] = final[key].get(k2, 0) + v2
+                    else:
+                        final[key][k2] = v2
+
+            # --- Listas (ya no usamos posts, así que se ignoran) ---
+            elif isinstance(value, list):
+                # pero NO guardamos nada
+                pass
+
+            # --- Otros tipos (ej: organization_id) ---
+            else:
+                final[key] = value
+
+    if not final:
+        return {}
+
+    # --- 2️⃣ Mantener solo lo necesario ---
+    cleaned = {
+        "totals": final.get("totals", {}),
+        "post_type_summary": final.get("post_type_summary", {}),
+    }
+
+    # --- 3️⃣ Conservar organization_id si existe ---
+    if "organization_id" in final:
+        cleaned["organization_id"] = final["organization_id"]
+
+    # --- 4️⃣ Guardar el último time_range ---
+    if last_time_range:
+        cleaned["time_range"] = last_time_range
+
+    print("🧩 [LinkedIn] Datos combinados:\n", json.dumps(cleaned, indent=4, ensure_ascii=False))
+    exit()
+    # return cleaned

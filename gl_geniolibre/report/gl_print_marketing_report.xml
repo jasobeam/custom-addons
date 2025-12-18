@@ -321,93 +321,85 @@
                 <t t-if="data['facebook_data']">
                     <div class="page">
 
-                        <img src="/gl_geniolibre/static/src/img/banner_facebook.jpg" alt="Facebook"
+                        <img src="/gl_geniolibre/static/src/img/banner_facebook.jpg"
+                             alt="Facebook"
                              style="max-width: 100%; height: auto;"/>
-                        <!-- Sección de Facebook - Totales -->
+
+                        <!-- Totales -->
                         <div>
                             <h3>Totales</h3>
-                            <table style="width: 100%; border-spacing: 16px;">
+                            <table style="width: 100%; border-spacing: 16px; table-layout: fixed;">
                                 <tr>
                                     <td class="metric-card">
                                         <div class="metric-value">
-                                            <t t-esc="data['facebook_data']['totals']['page_impressions']"/>
+                                            <t t-esc="data['facebook_data']['totals']['page_media_view']"/>
                                         </div>
-                                        <div class="metric-label">Impresiones</div>
+                                        <div class="metric-label">Vistas de contenido</div>
                                     </td>
+
                                     <td class="metric-card">
                                         <div class="metric-value">
                                             <t t-esc="data['facebook_data']['totals']['page_views_total']"/>
                                         </div>
-                                        <div class="metric-label">Vistas totales</div>
+                                        <div class="metric-label">Visitas a la página</div>
                                     </td>
+
                                     <td class="metric-card">
                                         <div class="metric-value">
-                                            <t t-esc="data['facebook_data']['totals']['page_fans']"/>
+                                            <t t-esc="data['facebook_data']['totals']['page_follows']"/>
                                         </div>
-                                        <div class="metric-label">Fans</div>
+                                        <div class="metric-label">Seguidores</div>
                                     </td>
+
                                     <td class="metric-card">
                                         <div class="metric-value">
-                                            <t t-esc="data['facebook_data']['totals']['page_fan_adds']"/>
+                                            <t t-esc="data['facebook_data']['totals'].get('followers_diff', 0)"/>
                                         </div>
-                                        <div class="metric-label">Nuevos fans</div>
+                                        <div class="metric-label">Variación de seguidores</div>
                                     </td>
-                                </tr>
-                                <tr>
-                                    <td class="metric-card">
-                                        <div class="metric-value">
-                                            <t t-esc="data['facebook_data']['totals']['page_fan_removes']"/>
-                                        </div>
-                                        <div class="metric-label">Bajas de fans</div>
-                                    </td>
-                                    <td class="metric-card">
-                                        <div class="metric-value">
-                                            <t t-esc="data['facebook_data']['totals']['page_impressions_unique']"/>
-                                        </div>
-                                        <div class="metric-label">Alcance único</div>
-                                    </td>
+
                                     <td class="metric-card">
                                         <div class="metric-value">
                                             <t t-esc="data['facebook_data']['totals']['page_post_engagements']"/>
                                         </div>
-                                        <div class="metric-label">Engagement total</div>
+                                        <div class="metric-label">Interacciones totales</div>
                                     </td>
                                     <td class="metric-card">
                                         <div class="metric-value">
-                                            <t t-esc="data['facebook_data']['totals']['page_posts_impressions']"/>
+                                            <t t-esc="data['facebook_data']['totals']['engagement_rate']"/>%
                                         </div>
-                                        <div class="metric-label">Impresiones de posts</div>
+                                        <div class="metric-label">Engagement Rate</div>
                                     </td>
                                 </tr>
                             </table>
-
                         </div>
-                        <!-- Resumen por Tipo de Publicación -->
                         <div>
                             <h3>Resumen por Tipo de Publicación</h3>
                             <table>
                                 <thead>
                                     <tr class="text-center header-facebook">
-                                        <th class="text-center">Tipo</th>
-                                        <th class="text-center">Posts</th>
-                                        <th class="text-center">Alcance</th>
-                                        <th class="text-center">Reacciones</th>
-                                        <th class="text-center">Comentarios</th>
-                                        <th class="text-center">Compartidos</th>
+                                        <th>Tipo</th>
+                                        <th>Posts</th>
+                                        <th>Vistas</th>
+                                        <th>Reacciones</th>
+                                        <th>Comentarios</th>
+                                        <th>Compartidos</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <t t-foreach="data['facebook_data']['post_type_summary'].items()" t-as="item">
                                         <t t-set="tipo_publicacion" t-value="{
-                                        'video_inline': '🎥 Video',
-                                        'video_direct_response': '🎥 Video con CTA',
-                                        'video': '🎥 Video',
-                                        'photo': '🖼️ Foto',
-                                        'status': '💬 Estado',
-                                        'link': '🔗 Enlace',
-                                        'event': '📅 Evento',
-                                        'offer': '🏷️ Oferta'
-                                    }.get(item[0], item[0].replace('_', ' ').capitalize())"/>
+                            'video_inline': '🎥 Video',
+                            'video_direct_response': '🎥 Video con CTA',
+                            'video': '🎥 Video',
+                            'photo': '🖼️ Foto',
+                            'album': '🖼️ Album',
+                            'status': '💬 Estado',
+                            'link': '🔗 Enlace',
+                            'event': '📅 Evento',
+                            'offer': '🏷️ Oferta'
+                        }.get(item[0], item[0].replace('_', ' ').capitalize())"/>
+
                                         <tr class="text-center">
                                             <td>
                                                 <t t-esc="tipo_publicacion"/>
@@ -416,7 +408,7 @@
                                                 <t t-esc="item[1]['posts']"/>
                                             </td>
                                             <td>
-                                                <t t-esc="item[1]['reach']"/>
+                                                <t t-esc="item[1]['views']"/>
                                             </td>
                                             <td>
                                                 <t t-esc="item[1]['reactions']"/>
@@ -432,18 +424,17 @@
                                 </tbody>
                             </table>
                         </div>
-                        <!-- Top Posts -->
+
                         <div class="top-posts-container">
                             <h3>Top Posts</h3>
-                            <table class="top-posts-table">
-                                <!-- Encabezados -->
+                            <table class="top-posts-table" style="table-layout: fixed; width: 100%;">
+
                                 <thead>
                                     <tr class="text-center header-facebook">
-                                        <th class="text-center  content-header">Contenido</th>
-                                        <th class="type-header" style="width: 80px;">Tipo</th>
-                                        <th class="metric-header" style="width: 70px;">Alcance</th>
-                                        <th class="metric-header" style="width: 70px;">Orgánico</th>
-                                        <th class="metric-header" style="width: 70px;">Pagado</th>
+                                        <th class="text-center content-header">Contenido</th>
+                                        <th class="text-center ">Copy</th>
+                                        <th style="width: 90px;">Tipo</th>
+                                        <th style="width: 90px;">Vistas</th>
                                         <th class="interactions-header">Interacciones</th>
                                     </tr>
                                 </thead>
@@ -451,73 +442,54 @@
                                 <tbody>
                                     <t t-foreach="data['facebook_data']['top_posts']" t-as="post">
                                         <t t-set="tipo_post" t-value="{
-                                        'video': '📹 Video',
-                                        'video_direct_response': '📹 Video con CTA',
-                                        'video_inline': '📹 Video',
-                                        'photo': '🖼️ Foto',
-                                        'status': '✍️ Estado',
-                                        'link': '🔍 Enlace',
-                                        'event': '🗓️ Evento',
-                                        'offer': '💰 Oferta'
-                                    }.get(post['type'], post['type'].replace('_', ' ').capitalize())"/>
+                            'video': '📹 Video',
+                            'video_direct_response': '📹 Video con CTA',
+                            'video_inline': '📹 Video',
+                            'photo': '🖼️ Foto',
+                            'status': '✍️ Estado',
+                            'link': '🔍 Enlace',
+                            'event': '🗓️ Evento',
+                            'album': '🖼️ Album',
+                            'offer': '💰 Oferta'
+                        }.get(post['type'], post['type'].replace('_', ' ').capitalize())"/>
 
                                         <tr>
-                                            <!-- Columna 1: Imagen + Texto -->
-                                            <td>
+                                            <td style="width: 20%;">
                                                 <div class="text-center post-content">
-                                                    <img t-att-src="post['picture_url']" class="post-image"/>
-
-                                                    <div class="post-message text-center">
-                                                        <t t-esc="post.get('message', 'Sin descripción').split('\n')[0]"/>
-                                                    </div>
+                                                    <img t-att-src="post['picture_url']"
+                                                         class="post-image"
+                                                         style="width:90%;max-width:90%;height:auto;"/>
                                                 </div>
                                             </td>
 
-                                            <!-- Columna 2: Tipo -->
+                                            <td class="post-type">
+                                                <t t-esc="post.get('message', 'Sin descripción')"/>
+                                            </td>
                                             <td class="post-type">
                                                 <t t-esc="tipo_post"/>
                                             </td>
 
-                                            <!-- Columna 3: Alcance -->
                                             <td class="metric-value">
-                                                <t t-esc="post['reach']"/>
+                                                <t t-esc="post['views']"/>
                                             </td>
 
-                                            <!-- Columna 4: Orgánico -->
-                                            <td class="metric-value organic-value">
-                                                <t t-esc="post['organic_reach']"/>
-                                            </td>
-
-                                            <!-- Columna 5: Pagado -->
-                                            <td class="metric-value paid-value">
-                                                <t t-esc="post['paid_reach']"/>
-                                            </td>
-
-                                            <!-- Columna 6: Interacciones -->
-                                            <td>
+                                            <td style="text-align: center; vertical-align: middle;">
                                                 <div class="interactions-container">
-                                                    <div class="interaction-metric"
-                                                         style="margin-bottom: 0px!important;">
-                                                        <div class="metric-label">
-                                                            <t t-esc="post['reactions']"/>
-                                                            ️ Reacciones
-                                                        </div>
+                                                    <div class="metric-label">
+                                                        👍
+                                                        <t t-esc="post['reactions']"/>
+                                                        Reacciones
                                                     </div>
-                                                    <div class="interaction-metric"
-                                                         style="margin-bottom: 0px!important;">
-                                                        <div class="metric-label">
-                                                            <t t-esc="post['comments']"/>
-                                                            📝 Comentarios
-                                                        </div>
+                                                    <div class="metric-label">
+                                                        📝
+                                                        <t t-esc="post['comments']"/>
+                                                        Comentarios
                                                     </div>
-                                                    <div class="interaction-metric"
-                                                         style="margin-bottom: 0px!important;">
-                                                        <div class="metric-label">
-                                                            <t t-esc="post['shares']"/>
-                                                            🔁 Compartidos
-                                                        </div>
+                                                    <div class="metric-label">
+                                                        🔁
+                                                        <t t-esc="post['shares']"/>
+                                                        Compartidos
                                                     </div>
-
                                                 </div>
                                             </td>
                                         </tr>
@@ -525,6 +497,7 @@
                                 </tbody>
                             </table>
                         </div>
+
                     </div>
                     <div class="page-break"/>
                 </t>
@@ -653,11 +626,12 @@
                         <!-- Top Posts Instagram -->
                         <div class="top-posts-container">
                             <h3>Top Posts</h3>
-                            <table class="top-posts-table">
+                            <table class="top-posts-table" style="table-layout: fixed; width: 100%;">
                                 <!-- Encabezados -->
                                 <thead>
                                     <tr class="text-center header-instagram">
                                         <th class="text-center content-header">Contenido</th>
+                                        <th class="text-center content-header">Copy</th>
                                         <th class="text-center type-header">Tipo</th>
                                         <th class="text-center metric-header">Vistas</th>
                                         <th class="text-center metric-header">Alcance</th>
@@ -683,20 +657,20 @@
                                                         <t t-if="post.get('media_url') or post.get('thumbnail_url')">
                                                             <img t-att-src="post.get('media_url')"
                                                                  class="post-image text-center"
+                                                                 style="width:90%;max-width:90%;height:auto;"
                                                                  t-if="post.get('media_url') and post.get('media_type') in ['IMAGE', 'CAROUSEL_ALBUM']"
                                                                  t-att-alt="post.get('caption', 'Post de Instagram')"/>
-
                                                             <img t-att-src="post.get('thumbnail_url')"
                                                                  class="post-image"
+                                                                 style="width:90%;max-width:90%;height:auto;"
                                                                  t-if="post.get('thumbnail_url') and post.get('media_type') in ['VIDEO', 'REEL']"
                                                                  t-att-alt="post.get('caption', 'Miniatura de video')"/>
                                                         </t>
-                                                        <div class="post-message text-center">
-                                                            <t t-esc="post.get('caption', '')"/>
-                                                        </div>
                                                     </div>
                                                 </td>
-
+                                                <td class="post-type">
+                                                    <t t-esc="post.get('caption', 'Sin descripción')"/>
+                                                </td>
                                                 <!-- Columna 2: Tipo -->
                                                 <td class="post-type">
                                                     <t t-esc="tipo_post"/>
@@ -1002,26 +976,26 @@
                              style="max-width: 100%; height: auto;"/>
 
                         <!-- Datos del Usuario -->
-<!--                        <div>-->
-<!--                            <h3>Perfil</h3>-->
-<!--                            <table style="width: 100%; border-spacing: 16px;">-->
-<!--                                <tr>-->
-<!--                                    <td>-->
-<!--                                        <img t-att-src="data['tiktok_data']['user']['avatar_url']"-->
-<!--                                             alt="Avatar" style="width: 80px; height: 80px; border-radius: 50%;"/>-->
-<!--                                    </td>-->
-<!--                                    <td>-->
-<!--                                        <a style="color:black;" t-att-href="data['tiktok_data']['user']['profile_deep_link']"-->
-<!--                                           target="_blank">-->
-<!--                                        <strong>-->
-<!--                                            <t t-esc="data['tiktok_data']['user']['display_name']"/>-->
-<!--                                            (@<t t-esc="data['tiktok_data']['user']['username']"/>)-->
-<!--                                        </strong>-->
-<!--                                        </a>-->
-<!--                                    </td>-->
-<!--                                </tr>-->
-<!--                            </table>-->
-<!--                        </div>-->
+                        <!--                        <div>-->
+                        <!--                            <h3>Perfil</h3>-->
+                        <!--                            <table style="width: 100%; border-spacing: 16px;">-->
+                        <!--                                <tr>-->
+                        <!--                                    <td>-->
+                        <!--                                        <img t-att-src="data['tiktok_data']['user']['avatar_url']"-->
+                        <!--                                             alt="Avatar" style="width: 80px; height: 80px; border-radius: 50%;"/>-->
+                        <!--                                    </td>-->
+                        <!--                                    <td>-->
+                        <!--                                        <a style="color:black;" t-att-href="data['tiktok_data']['user']['profile_deep_link']"-->
+                        <!--                                           target="_blank">-->
+                        <!--                                        <strong>-->
+                        <!--                                            <t t-esc="data['tiktok_data']['user']['display_name']"/>-->
+                        <!--                                            (@<t t-esc="data['tiktok_data']['user']['username']"/>)-->
+                        <!--                                        </strong>-->
+                        <!--                                        </a>-->
+                        <!--                                    </td>-->
+                        <!--                                </tr>-->
+                        <!--                            </table>-->
+                        <!--                        </div>-->
 
                         <!-- Resumen General -->
                         <div>
@@ -1100,9 +1074,15 @@
                                         <tr>
                                             <td>
                                                 <div class="text-center post-content">
-                                                    <a style="color:black;" t-att-href="video['share_url']" target="_blank"><img t-att-src="video['cover_image_url']" class="post-image"/></a>
+                                                    <a style="color:black;" t-att-href="video['share_url']"
+                                                       target="_blank">
+                                                        <img t-att-src="video['cover_image_url']" class="post-image"/>
+                                                    </a>
                                                     <div class="post-message text-center">
-                                                        <a style="color:black;" t-att-href="video['share_url']" target="_blank"><t t-esc="(video.get('video_description') or 'Sin descripción')[:50]"/></a>
+                                                        <a style="color:black;" t-att-href="video['share_url']"
+                                                           target="_blank">
+                                                            <t t-esc="(video.get('video_description') or 'Sin descripción')[:50]"/>
+                                                        </a>
                                                     </div>
                                                 </div>
                                             </td>
@@ -1126,7 +1106,6 @@
                     </div>
                     <div class="page-break"/>
                 </t>
-
                 <!-- #############################################################  Sección de Google Ads -->
                 <t t-if="data.get('google_ads_data')">
                     <div class="page">
@@ -1336,6 +1315,7 @@
                     </div>
                     <div class="page-break"/>
                 </t>
+                <!-- ############################################################# Sección de LinkedIn -->
                 <!-- #############################################################  Footer -->
                 <t t-if="data.get('google_ads_data') or data.get('meta_ads_data')">
                     <h3>Leyenda</h3>
