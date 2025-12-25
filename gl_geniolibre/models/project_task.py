@@ -1,22 +1,22 @@
 # -*- coding: utf-8 -*-:
 import random, re, requests, base64, boto3, logging
+import subprocess
+import json
+import tempfile
+import base64
+import botocore
 
 from io import BytesIO
-
-import botocore
 from odoo.tools import html2plaintext
 from odoo import models, fields, api
 from datetime import datetime
 from odoo.exceptions import ValidationError
 
-from odoo import http
-from odoo.http import request
-
 import mimetypes
 
 _logger = logging.getLogger(__name__)
 
-API_VERSION = "v23.0"
+API_VERSION = None
 LinkedIn_Version = "202505"
 CHUNK_SIZE = 4 * 1024 * 1024  # 4 MB recomendado para vídeos
 
@@ -89,10 +89,55 @@ class project_task(models.Model):
     fb_video_url = fields.Char(string="Facebook Video URL")
     inst_post_id = fields.Char(string="Instagram Post ID")
     inst_post_url = fields.Char(string="Instagram URL")
-    tiktok_post_id = fields.Char(string="TikTok Post ID")
-    tiktok_post_url = fields.Char(string="TikTok URL")
     linkedin_post_id = fields.Char(string="LinkedIn Post ID")
     linkedin_post_url = fields.Char(string="LinkedIn URL")
+    tiktok_post_id = fields.Char(string="TikTok Post ID")
+    tiktok_post_url = fields.Char(string="TikTok URL")
+
+    # ====================================================================================== Tiktok Requisitos#
+        # PRIVACIDAD (obligatorio por API)
+    tiktok_privacy_level = fields.Selection([
+        ('PUBLIC', 'Público'),
+        ('FRIENDS', 'Amigos'),
+        ('SELF_ONLY', 'Solo yo'),
+    ], string="Privacidad TikTok", required=True, default='PUBLIC')
+
+    # INTERACCIONES
+    tiktok_allow_comments = fields.Boolean(string="Permitir comentarios", default=True)
+    tiktok_allow_duet = fields.Boolean(string="Permitir duet", default=True)
+    tiktok_allow_stitch = fields.Boolean(string="Permitir stitch", default=True)
+
+    # TOGGLE PRINCIPAL (off por defecto según TikTok)
+    tiktok_is_commercial = fields.Boolean(string="¿Es contenido comercial?", default=False, help="Indica si este contenido promociona una marca, producto o servicio")
+
+    # OPCIONES MÚLTIPLES (Your Brand y Branded Content)
+    tiktok_commercial_your_brand = fields.Boolean(string="Your Brand", help="Estás promocionando tu propia marca o negocio")
+    tiktok_commercial_branded = fields.Boolean(string="Branded Content", help="Estás promocionando otra marca o tercero")
+    tiktok_commercial_label_info = fields.Char(string="Etiqueta Comercial", readonly=True, help="Información sobre cómo se etiquetará el contenido")
+    tiktok_privacy_note = fields.Char(string="Nota Privacidad", readonly=True, help="Información sobre restricciones de privacidad")
+    tiktok_legal_text = fields.Char(string="Texto Legal", readonly=True, help="Texto de conformidad legal requerido por TikTok")
+
+    # Traer los campos del partner (solo lectura)
+    tiktok_nickname = fields.Char(related='partner_id.tiktok_nickname', string='TikTok Nickname', readonly=True, store=False)
+    tiktok_avatar_url = fields.Char(related='partner_id.tiktok_avatar_url', string='TikTok Avatar URL', readonly=True, store=False)
+
+    # Nuevo campo label para mensajes legales / restricciones de TikTok
+    tiktok_creator_status_info = fields.Text(string="Estado del Creador (TikTok)", readonly=True, )
+    tiktok_video_duration = fields.Integer(string="Duración del video (segundos)")
+
+
+    @api.onchange('red_social_ids')
+    def _onchange_red_social_ids_check_tiktok(self):
+        """Ejecutar la validación SOLO si el usuario selecciona TikTok dentro de la lista."""
+        if not self.red_social_ids:
+            return
+
+        # Normalizamos a string (ejemeplo: campos name)
+        selected_networks = self.red_social_ids.mapped('name')
+
+        # Si TikTok está seleccionado, ejecutamos validación
+        if 'TikTok' in selected_networks:
+            self.check_tiktok_creator_status()
 
     def unlink(self):
         for task in self:
@@ -163,6 +208,13 @@ class project_task(models.Model):
                         for attachment in current_attachments:
                             if attachment.mimetype != "video/mp4":
                                 raise ValidationError("Solo se aceptan videos en formato MP4 para el tipo de publicación '{}'.".format(current_tipo))
+                            else:
+                                try:
+                                    duration_seconds = get_video_duration_ffprobe(attachment.datas)
+                                    vals['tiktok_video_duration'] = duration_seconds
+                                except Exception as e:
+                                    raise ValidationError(f"No se pudo analizar el video MP4: {e}")
+
                 else:  # current_tipo == "feed"
                     for attachment in current_attachments:
                         if attachment.mimetype == "video/mp4":
@@ -170,20 +222,41 @@ class project_task(models.Model):
         return super().write(vals)
 
     def programar_post(self):
-        self.ensure_one()  # Asegurar que operamos sobre un único registro al principio
+        try:
+            self.ensure_one()  # Asegurar que operamos sobre un único registro al principio
 
-        if self.state != "03_approved":
-            raise ValidationError("El estado de la Tarea debe ser 'Aprobado' para poder programar el post.")
+            if self.state != "03_approved":
+                raise ValidationError("El estado de la Tarea debe ser 'Aprobado' para poder programar el post.")
 
-        # Eliminar la siguiente línea: Odoo manejará el commit de la transacción.
-        self.post_estado = "Programado"  # Opcional: Si este metodo se llama desde un botón y quieres dar feedback  # podrías devolver una acción de notificación, pero para la lógica del modelo  # simplemente cambiar el estado es suficiente.
-        # Mensaje simple
+            # Eliminar la siguiente línea: Odoo manejará el commit de la transacción.
+            self.post_estado = "Programado"  # Opcional: Si este metodo se llama desde un botón y quieres dar feedback  # podrías devolver una acción de notificación, pero para la lógica del modelo  # simplemente cambiar el estado es suficiente.  # Mensaje simple
+
+        except Exception as e:
+            _logger.error("Error en mi_funcion_critica: %s", e)
+            # Correo
+            error_detalle = str(e)
+            self.env['mail.mail'].create({
+
+                'subject': 'SERVER GL - Error en el Sistema',
+                'body_html': f"""
+                    <p><strong>Ocurrió un error en la automatización</strong></p>
+                    <p><b>Proceso:</b> programar_post</p>
+                    <p><b>Tarea:</b> {self.display_name}</p>
+                    <p><b>ID:</b> {self.id}</p>
+                    <p><b>Error:</b></p>
+                    <pre style="background:#f6f6f6;padding:10px;border:1px solid #ddd;">{error_detalle}</pre>
+                """,
+                'email_to': self.env.ref('base.user_admin').email,
+            }).send()
+            raise ValidationError("Ocurrió un error inesperado. Revisa la notificación.")
+
     def cancelar_post(self):
         self.ensure_one()  # Asegura que solo hay un registro seleccionado
         self.post_estado = "Pendiente"
 
     def revisar_post(self, from_cron=False):  # Optimizado
         error_message = []
+        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
         try:
             if self.post_estado == "Procesando":
                 # 2. Verificar el estado de procesamiento
@@ -219,7 +292,7 @@ class project_task(models.Model):
                 else:
                     raise ValidationError(status_data)
 
-            # Generar Permalink de Facebook
+            # Revisar y Generar Permalink de Facebook
             if self.fb_post_id and self.post_estado == "Publicado":
                 self.fb_post_url = f"https://www.facebook.com/{self.fb_post_id}" if self.tipo != "video_stories" else f"https://www.facebook.com/{self.partner_facebook_page_id}"
 
@@ -318,6 +391,22 @@ class project_task(models.Model):
             _logger.error(f"Error en revisar_post para registro {self.id}: {str(e)}")
             if from_cron:
                 raise
+            _logger.error("Error en revisar_post: %s", e)
+            # Correo
+            error_detalle = str(e)
+            self.env['mail.mail'].create({
+                'subject': 'Error en automatización',
+                'body_html': f"""
+                                <p><strong>Ocurrió un error en la automatización</strong></p>
+                                <p><b>Proceso:</b> revisar_post</p>
+                                <p><b>Tarea:</b> {self.display_name}</p>
+                                <p><b>ID:</b> {self.id}</p>
+                                <p><b>Error:</b></p>
+                                <pre style="background:#f6f6f6;padding:10px;border:1px solid #ddd;">{error_detalle}</pre>
+                            """,
+                'email_to': self.env.ref('base.user_admin').email,
+            }).send()
+
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
@@ -333,6 +422,8 @@ class project_task(models.Model):
             }
 
     def publicar_post(self):
+        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
+
         BASE_URL = f'https://graph.facebook.com/{API_VERSION}'
 
         def remove_duplicate_links(text):
@@ -385,6 +476,8 @@ class project_task(models.Model):
 
                 response = requests.post(url, params=params)
                 response_data = response.json()
+                print(url)
+                print("feed", response_data)
                 if response.status_code == 200:
                     return response.json().get("id")
                 else:
@@ -400,6 +493,7 @@ class project_task(models.Model):
                 }
                 response = requests.post(url, data=headers, params=params)
                 response_data = response.json()
+                print("Video", response_data)
                 if 'video_id' in response_data and 'upload_url' in response_data:
                     video_id = response_data['video_id']
                     self.fb_video_id = video_id
@@ -414,6 +508,7 @@ class project_task(models.Model):
                 }
                 response = requests.post(upload_url, headers=headers)
                 response_data = response.json()
+                print("upload_url", response_data)
                 if 'success' not in response_data:
                     raise ValidationError(f"Error uploading video file: {response_data}")
 
@@ -426,7 +521,9 @@ class project_task(models.Model):
                 }
                 response = requests.post(url, params=params)
                 response_data = response.json()
+                print("success", response_data)
                 if 'success' in response_data:
+                    print(self.tipo)
                     if self.imagen_portada and self.tipo == "video_reels":
                         image_data = base64.b64decode(self.imagen_portada)
                         image_file = BytesIO(image_data)
@@ -441,6 +538,8 @@ class project_task(models.Model):
                             'is_preferred': 'true'
                         }
                         response = requests.post(url, files=files, data=data)
+                        print("thumbnails", response)
+                    print("success", response_data.get("post_id"))
                     return response_data.get("post_id")
 
                 else:
@@ -481,6 +580,7 @@ class project_task(models.Model):
                         }
 
                 container_response = requests.post(container_url, params=container_params)
+                print(container_response.json())
                 container_id = container_response.json().get('id')
                 if container_response.status_code != 200:
                     error_message = container_response.json()
@@ -516,7 +616,7 @@ class project_task(models.Model):
 
                 publish_url = f"{BASE_URL}/{self.partner_instagram_page_id}/media_publish"
                 publish_response = requests.post(publish_url, params=publish_params)
-
+                print(publish_response.json())
                 if publish_response.status_code != 200:
                     error_message = publish_response.json().get('error', {}).get('message', 'Unknown error')
                     raise ValidationError(f"Error al publicar en Instagram: {error_message}")
@@ -923,6 +1023,20 @@ class project_task(models.Model):
                 })
                 if errors:
                     # Publicación parcialmente exitosa
+                    _logger.error("Error en mi_funcion_critica: %s", e)
+                    error_detalle = str(e)
+                    self.env['mail.mail'].create({
+                        'subject': 'SERVER GL - Error en el Sistema',
+                        'body_html': f"""
+                            <p><strong>Ocurrió un error en la automatización</strong></p>
+                            <p><b>Proceso:</b> publicar_post</p>
+                            <p><b>Tarea:</b> {self.display_name}</p>
+                            <p><b>ID:</b> {self.id}</p>
+                            <p><b>Error:</b></p>
+                            <pre style="background:#f6f6f6;padding:10px;border:1px solid #ddd;">{error_detalle}</pre>
+                            """,
+                        'email_to': self.env.ref('base.user_admin').email,
+                    }).send()
                     return {
                         "type": "ir.actions.client",
                         "tag": "display_notification",
@@ -949,10 +1063,102 @@ class project_task(models.Model):
                     }
             else:
                 # Todo falló
+                _logger.error("Error en mi_funcion_critica: %s", e)
+                error_detalle = str(e)
+                self.env['mail.mail'].create({
+                    'subject': 'SERVER GL - Error en el Sistema',
+                    'body_html': f"""
+                        <p><strong>Ocurrió un error en la automatización</strong></p>
+                        <p><b>Proceso:</b> publicar_post</p>
+                        <p><b>Tarea:</b> {self.display_name}</p>
+                        <p><b>ID:</b> {self.id}</p>
+                        <p><b>Error:</b></p>
+                        <pre style="background:#f6f6f6;padding:10px;border:1px solid #ddd;">{error_detalle}</pre>
+                        """,
+                    'email_to': self.env.ref('base.user_admin').email,
+                }).send()
                 raise ValidationError("No se pudo publicar en ninguna red social:\n" + "\n".join(errors))
 
         except Exception as e:
+            _logger.error("Error en mi_funcion_critica: %s", e)
+            error_detalle = str(e)
+            self.env['mail.mail'].create({
+                'subject': 'SERVER GL - Error en el Sistema',
+                'body_html': f"""
+                    <p><strong>Ocurrió un error en la automatización</strong></p>
+                    <p><b>Proceso:</b> publicar_post</p>
+                    <p><b>Tarea:</b> {self.display_name}</p>
+                    <p><b>ID:</b> {self.id}</p>
+                    <p><b>Error:</b></p>
+                        <pre style="background:#f6f6f6;padding:10px;border:1px solid #ddd;">{error_detalle}</pre>
+                    """,
+                'email_to': self.env.ref('base.user_admin').email,
+            }).send()
             raise ValidationError(f"Error en el proceso de publicación: {str(e)}")
+
+    def check_tiktok_creator_status(self):
+        self.ensure_one()
+
+        # Token del creador (ajústalo a donde lo guardes)
+        access_token = self.partner_id.tiktok_access_token
+        if not access_token:
+            raise ValidationError("No existe access_token de TikTok para este creador.")
+
+        url = "https://open.tiktokapis.com/v2/post/publish/creator_info/query/"
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "fields": [
+                "can_publish",
+                "max_video_post_duration_sec"
+            ]
+        }
+
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            msg = f"Error consultando TikTok Creator Info: {response.text}"
+            self.tiktok_creator_status_info = msg
+            raise ValidationError(msg)
+
+        data = response.json()
+
+        # ----------------------------
+        # 1) VERIFICAR SI PUEDE PUBLICAR
+        # ----------------------------
+        can_publish = data.get("data", {}).get("can_publish", None)
+
+        if can_publish is False:
+            msg = "❌ El creador ha alcanzado el límite de publicaciones. No puede publicar en este momento."
+            self.tiktok_creator_status_info = msg
+            raise ValidationError(msg)
+
+        # ----------------------------
+        # 2) VERIFICAR DURACIÓN PERMITIDA
+        # ----------------------------
+        max_duration = data.get("data", {}).get("max_video_post_duration_sec", None)
+
+        if max_duration and self.tiktok_video_duration:
+            if self.tiktok_video_duration > max_duration:
+                msg = (f"⛔ El video excede la duración máxima permitida.\n"
+                       f"Duración del video: {self.tiktok_video_duration} s\n"
+                       f"Máximo permitido por TikTok: {max_duration} s")
+                self.tiktok_creator_status_info = msg
+                raise ValidationError(msg)
+
+        # ----------------------------
+        # SI TODO OK → MENSAJE POSITIVO
+        # ----------------------------
+        ok_msg = (f"✔ El creador puede publicar.\n"
+                  f"Duración máxima permitida: {max_duration} segundos.\n"
+                  f"Duración del video a publicar: {self.tiktok_video_duration} segundos.")
+        self.tiktok_creator_status_info = ok_msg
+
+        return True
 
 
 def upload_files_to_s3(files, aws_api, aws_secret):
@@ -970,13 +1176,7 @@ def upload_files_to_s3(files, aws_api, aws_secret):
     # Crear cliente con timeout seguro
     try:
         _logger.info("Iniciando conexión con AWS S3...")
-        s3_client = boto3.client(
-            's3',
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-            region_name=region_name,
-            config=botocore.config.Config(connect_timeout=5, read_timeout=15),
-        )
+        s3_client = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=region_name, config=botocore.config.Config(connect_timeout=5, read_timeout=15), )
         _logger.info("Cliente AWS S3 creado correctamente.")
     except Exception as e:
         _logger.exception("Error al crear el cliente AWS S3")
@@ -991,15 +1191,22 @@ def upload_files_to_s3(files, aws_api, aws_secret):
     elif isinstance(files, (tuple, list)):
         files = list(files)
     else:
-        files = [files]
+        files = [
+            files
+        ]
 
-    allowed_extensions = {'jpg', 'jpeg', 'mp4'}
+    allowed_extensions = {
+        'jpg',
+        'jpeg',
+        'mp4'
+    }
     uploaded_urls = []
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     random_digits = ''.join(random.choices('0123456789', k=5))
 
     for idx, item in enumerate(files, start=1):
+
         try:
             # Detectar tipo de objeto
             if hasattr(item, 'datas') and hasattr(item, 'name'):  # ir.attachment
@@ -1015,9 +1222,7 @@ def upload_files_to_s3(files, aws_api, aws_secret):
 
             file_ext = file_name_raw.split('.')[-1].lower()
             if file_ext not in allowed_extensions:
-                raise ValidationError(
-                    f"Tipo de archivo '{file_ext}' no permitido. Solo JPG, JPEG o MP4."
-                )
+                raise ValidationError(f"Tipo de archivo '{file_ext}' no permitido. Solo JPG, JPEG o MP4.")
 
             file_name = f"media_{timestamp}_{random_digits}-{idx}.{file_ext}"
             _logger.info(f"Preparando archivo {file_name_raw} para subida ({file_ext})...")
@@ -1026,12 +1231,10 @@ def upload_files_to_s3(files, aws_api, aws_secret):
             file_bytes = base64.b64decode(file_data)
             _logger.info(f"Subiendo {file_name} ({len(file_bytes)} bytes) a S3...")
 
-            s3_client.put_object(
-                Bucket=bucket_name,
-                Key=file_name,
-                Body=file_bytes,
-                ContentType='image/jpeg' if file_ext in ['jpg', 'jpeg'] else 'video/mp4',
-            )
+            s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=file_bytes, ContentType='image/jpeg' if file_ext in [
+                'jpg',
+                'jpeg'
+            ] else 'video/mp4', )
 
             file_url = f"https://{bucket_name}.s3.{region_name}.amazonaws.com/{file_name}"
             uploaded_urls.append(file_url)
@@ -1044,3 +1247,39 @@ def upload_files_to_s3(files, aws_api, aws_secret):
 
     _logger.info(f"Todos los archivos subidos correctamente. Total: {len(uploaded_urls)}")
     return uploaded_urls
+
+
+def get_video_duration_ffprobe(base64_data):
+    import subprocess, json, tempfile, base64
+    from odoo.exceptions import ValidationError
+
+    try:
+        with tempfile.NamedTemporaryFile(delete=True, suffix=".mp4") as tmp:
+            tmp.write(base64.b64decode(base64_data))
+            tmp.flush()
+
+            cmd = [
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "json",
+                tmp.name
+            ]
+
+            # 🔥 timeout de 3 segundos → evita loops infinitos
+            output = subprocess.check_output(cmd, timeout=3)
+            info = json.loads(output.decode("utf-8"))
+
+            duration = float(info["format"]["duration"])
+            return int(duration)
+
+    except subprocess.TimeoutExpired:
+        raise ValidationError("ffprobe demoró demasiado y fue detenido. El archivo puede estar corrupto.")
+
+    except Exception as e:
+        raise ValidationError(f"No se pudo obtener la duración del video usando ffprobe: {e}")

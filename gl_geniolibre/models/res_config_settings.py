@@ -6,7 +6,7 @@ import requests
 from odoo.exceptions import ValidationError
 from odoo import fields, models, api
 
-
+API_VERSION = None
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
@@ -14,6 +14,7 @@ class ResConfigSettings(models.TransientModel):
     facebook_app_id = fields.Char(string="Facebook API Key", config_parameter="gl_facebook.app_id")
     facebook_app_secret = fields.Char(string="Facebook APP Secret", config_parameter="gl_facebook.secret")
     facebook_redirect_uri = fields.Char(string="Facebook Redirect URI", config_parameter="facebook_redirect", default="http://localhost:8018/facebook-auth/")
+    facebook_api_version = fields.Char(string="Facebook API Version", config_parameter="gl_facebook.api_version", default="v24.0", help='Ejemplo: v24.0')
 
     aws_access_key = fields.Char(string="AWS Clave de acceso", config_parameter="gl_aws.api_key")
     aws_secret = fields.Char(string="AWS Clave de acceso secreta", config_parameter="gl_aws.secret")
@@ -88,6 +89,8 @@ class ResConfigSettings(models.TransientModel):
             }
 
     def conectar_facebook(self):
+        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
+
         scopes_list = [
             "pages_read_user_content",
             "ads_read",
@@ -105,12 +108,12 @@ class ResConfigSettings(models.TransientModel):
         ]
 
         scopes = ",".join(scopes_list)
-
-        auth_url = (f"https://www.facebook.com/v22.0/dialog/oauth"
+        auth_url = (f"https://www.facebook.com/{API_VERSION}/dialog/oauth"
                     f"?client_id={self.facebook_app_id}"
                     f"&redirect_uri={self.facebook_redirect_uri}"
-                    f"&scope={scopes}")
-
+                    f"&scope={scopes}"
+                    f"&config_id=843300575254898")
+        print(auth_url)
         return {
             'type': 'ir.actions.act_url',
             'url': auth_url,
@@ -153,6 +156,7 @@ class ResConfigSettings(models.TransientModel):
             "w_member_social",
             "w_organization_social",
             "r_organization_admin",
+            "r_organization_social",
             "rw_organization_admin"
         ]
 

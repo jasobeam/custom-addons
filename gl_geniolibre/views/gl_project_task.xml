@@ -6,6 +6,7 @@
             <field name="model">project.task</field>
             <field name="inherit_id" ref="project.view_task_form2"/>
             <field name="arch" type="xml">
+
                 <xpath expr="//page[@name='description_page']" position="replace">
                     <page name="description_page" string="Description">
                         <group>
@@ -28,6 +29,7 @@
 
                 </xpath>
                 <xpath expr="//h1" position="replace" mode="inner">
+
                     <widget name="web_ribbon" bg_color="text-bg-warning" title="Programado"
                             invisible="post_estado != 'Programado'"/>
                     <widget name="web_ribbon" bg_color="text-bg-info" title="Procesando"
@@ -48,6 +50,7 @@
                             <group>
                                 <field name="adjuntos_ids" widget="many2many_binary"
                                        options="{'no_create': True , 'accepted_file_extensions': '.jpeg,.jpg,.mp4'}"/>
+                                <field name="tiktok_video_duration"/>
                             </group>
                             <group>
                                 <field name="imagen_portada" widget="image" accept=".jpg,.jpeg,image/jpeg"/>/>
@@ -55,6 +58,54 @@
                         </group>
                     </page>
                 </xpath>
+                <!---  Requisitos TIKTOK-->
+                <xpath expr="//page[@name='description_page']" position="after">
+                    <page string="Publicar en TikTok"
+                          name="tiktok_publish_page"
+                          modifiers='{
+                              "invisible": [
+                                  ["|",
+                                      ["tipo", "=", "otro"],
+                                      ["red_social_ids", "not in", ref("tu_modulo.red_social_tiktok")]
+                                  ]
+                              ]
+                          }'>
+                        <!-- INFORMACIÓN DEL CREADOR TIKTOK -->
+                        <group string="Información del Creador TikTok">
+                            <group>
+
+                                <!-- NICKNAME -->
+                                <field name="tiktok_nickname" readonly="1"/>
+
+                                <!-- AVATAR URL -->
+                                <field name="tiktok_avatar_url" string="TikTok Avatar"
+                                       widget="image_url"
+                                       options="{'size': [50, 50]}"/>
+                                <field
+                                        name="tiktok_creator_status_info"
+                                        widget="text"
+                                        readonly="1"
+                                        placeholder="Aquí aparecerán los mensajes devueltos por TikTok Creator Info (límites de publicación, duración permitida, restricciones, etc.)"
+                                />
+                            </group>
+
+                            <group>
+
+                                <!-- MENSAJES DEL CREADOR (LÍMITES, DURACIÓN, ALERTAS) -->
+                                <field
+                                        name="tiktok_creator_status_info"
+                                        widget="text"
+                                        readonly="1"
+                                        placeholder="Aquí aparecerán los mensajes devueltos por TikTok Creator Info (límites de publicación, duración permitida, restricciones, etc.)"
+                                />
+
+                            </group>
+                        </group>
+
+                    </page>
+
+                </xpath>
+
                 <xpath expr="//group/group[2]" position="inside">
                     <field name="tipo" widget="selection" readonly="post_estado != 'Pendiente'"/>
                     <field name="fecha_publicacion" readonly="post_estado != 'Pendiente'" invisible="tipo == 'otro' "/>

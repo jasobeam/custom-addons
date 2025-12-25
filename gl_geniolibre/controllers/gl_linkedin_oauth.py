@@ -8,7 +8,7 @@ LinkedIn_Version = "202505"
 
 class LinkedInAuthController(http.Controller):
 
-    @http.route('/linkedin-oauth', type='http', auth='public')
+    @http.route('/linkedin-oauth', type='http', auth='public', website=True)
     def linkedin_callback(self, **kwargs):
         code = kwargs.get('code')
         if not code:

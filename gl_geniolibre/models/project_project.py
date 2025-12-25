@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone, time
 from collections import defaultdict
 from google.ads.googleads.client import GoogleAdsClient
 
-API_VERSION = "v24.0"
+API_VERSION = None
 LinkedIn_Version = "202505"
 
 
@@ -228,6 +228,8 @@ class project_project(models.Model):
         return True
 
     def fetch_facebook_campaigns(self):  # Optimizado
+        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
+
         # 1. Eliminar TODAS las campañas existentes para esta cuenta
         self.env['facebook.ad.campaigns'].search([]).unlink()
         # Validar token de acceso
@@ -386,6 +388,7 @@ class project_project(models.Model):
         return ((start_date is None or start_date <= until_date) and (end_date is None or end_date >= since_date))
 
     def get_facebook_data(self, since, until):
+        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
         BASE_URL = f"https://graph.facebook.com/{API_VERSION}/{self.partner_facebook_page_id}"
         print("Iniciamos Facebook Data")
 
@@ -520,6 +523,8 @@ class project_project(models.Model):
         }
 
     def get_instagram_data(self, since, until):
+        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
+
         """
         Devuelve los datos crudos de Instagram: métricas generales y posts.
         """
@@ -657,6 +662,8 @@ class project_project(models.Model):
         }
 
     def get_meta_ads_data(self, since, until):
+        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
+
         """
         Obtiene datos crudos de campañas de Meta Ads (Facebook) en el rango indicado.
         No calcula métricas agregadas; estas se calculan en merge_final_metaads_data.

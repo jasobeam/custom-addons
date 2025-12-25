@@ -19,6 +19,7 @@ class GeneradorContenidoPropuesta(models.Model):
         ("post", "Post"),
         ("reel", "Reel"),
         ("story", "Story"),
+        ("carrusel", "Carrusel"),
     ], string="Tipo de Contenido", default="post")
     descripcion = fields.Text("Descripción")
     texto_en_diseno = fields.Char("Texto en Diseño")
@@ -86,8 +87,8 @@ class GeneradorContenidoFlujo(models.Model):
     # Etapa: Reunión
     feedback_cliente = fields.Text("Feedback del Cliente")
     anotaciones_cliente = fields.Text("Anotaciones de la Reunión")
-    promtp_refinamiento = fields.Text("Promtp para Chatpgt")
-    promtp_respuesta_refinamiento = fields.Text("Respuesta de Chatpgt")
+    promtp_refinamiento = fields.Text("Promtp de Refinamiento")
+    promtp_respuesta_refinamiento = fields.Text("Respuesta de Refinamiento")
 
     # Etapa: Refinamiento
     plan_base = fields.Html("Plan Base")

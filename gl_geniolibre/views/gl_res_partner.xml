@@ -31,11 +31,14 @@
                             <group string="TikTok API">
                                 <field name="tiktok_auth_code" string="Authorization Code"/>
                                 <field name="tiktok_access_token" string="Access Token"/>
-
                                 <field name="tiktok_refresh_token" string="Refresh Token"/>
                                 <field name="tiktok_expires_in" string="Expiration"/>
                                 <field name="tiktok_issued_at" string="Issued At"/>
-
+                                <field name="tiktok_open_id" string="TikTok Open ID"/>
+                                <field name="tiktok_nickname" string="TikTok Nickname"/>
+                                <field name="tiktok_avatar_url" string="TikTok Avatar"
+                                       widget="image_url"
+                                       options="{'size': [150, 150]}"/>
                                 <button string="Obtener Autorización" icon="fa-tiktok" type="object"
                                         name="tiktok_get_auth_code" class="btn-success mr4"
                                         invisible="tiktok_auth_code"/>
@@ -45,11 +48,11 @@
                             </group>
                             <group string="Google API">
                                 <field name="id_google_ads_account"/>
-<!--                                <field name="gsc_site_url"/>-->
-<!--                                <field name="ga4_property_id"/>-->
+                                <!--                                <field name="gsc_site_url"/>-->
+                                <!--                                <field name="ga4_property_id"/>-->
                                 <field name="google_ads_account"/>
-<!--                                <field name="gsc_site"/>-->
-<!--                                <field name="ga4_property"/>-->
+                                <!--                                <field name="gsc_site"/>-->
+                                <!--                                <field name="ga4_property"/>-->
                                 <button name="google_obtener_datos"
                                         string="Actualizar Datos"
                                         icon="fa-google"

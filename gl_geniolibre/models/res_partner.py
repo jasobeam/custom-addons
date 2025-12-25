@@ -11,7 +11,8 @@ from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
 LinkedIn_Version = "202505"
-API_VERSION = "v23.0"
+API_VERSION = None
+
 
 class GoogleAdsAccount(models.Model):
     _name = 'google.ads.account'
@@ -65,6 +66,9 @@ class Partner(models.Model):
     tiktok_expires_in = fields.Integer()
     tiktok_refresh_expires_in = fields.Integer()
     tiktok_issued_at = fields.Integer()
+    tiktok_nickname = fields.Char(string='TikTok Nickname')
+    tiktok_avatar_url = fields.Char(string='TikTok Avatar URL')
+    tiktok_open_id = fields.Char(string='TikTok Open ID')
 
     # Google Ads
     google_ads_account = fields.Many2one('google.ads.account', string='Cuenta de Google Ads')
@@ -75,7 +79,7 @@ class Partner(models.Model):
     id_linkedin_organization = fields.Char(string="ID Organización LinkedIn", related='linkedin_organization.account_id', readonly=True, store=True)
 
     def facebook_obtener_datos(self):
-
+        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
         def fetch_facebook_accounts():
             access_token = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_key')
 
@@ -98,13 +102,13 @@ class Partner(models.Model):
             # 1) Actualizar o crear
             for acc in accounts:
                 existing = AdAccount.search([
-                                                ('account_id', '=', acc['account_id'])
-                                            ], limit=1)
+                    ('account_id', '=', acc['account_id'])
+                ], limit=1)
                 if existing:
                     if existing.name != acc['name']:
                         existing.write({
-                                           'name': acc['name']
-                                       })
+                            'name': acc['name']
+                        })
                 else:
                     AdAccount.create({
                         'name': acc['name'],
@@ -113,8 +117,8 @@ class Partner(models.Model):
 
             # 2) Eliminar las cuentas que ya no existen en Facebook
             stale = AdAccount.search([
-                                         ('account_id', 'not in', api_ids)
-                                     ])
+                ('account_id', 'not in', api_ids)
+            ])
             if stale:
                 stale.unlink()
 
@@ -150,10 +154,6 @@ class Partner(models.Model):
                 raise ValidationError(f"Error al obtener Tokens de Facebook: {response.json()}")
 
     def tiktok_get_auth_code(self):
-        """
-        Simplified version using only json (and Odoo's requests)
-        Equivalent to the cURL command but using Odoo's tools
-        """
         parametros = self.env['ir.config_parameter'].sudo()
         tiktok_client = parametros.get_param('tiktok_key')
         tiktok_secret = parametros.get_param('tiktok_secret')
@@ -193,6 +193,7 @@ class Partner(models.Model):
             'url': auth_url,
             'target': 'new',
         }
+
 
     def tiktok_renew_token(self):
         parametros = self.env['ir.config_parameter'].sudo()
@@ -296,8 +297,8 @@ class Partner(models.Model):
             customer_id = customer.client_customer.split("/")[-1]
             name = customer.descriptive_name
             if not account_model.search([
-                                            ("account_id", "=", customer_id)
-                                        ]):
+                ("account_id", "=", customer_id)
+            ]):
                 account_model.create({
                     "name": name or f"Cuenta {customer_id}",
                     "account_id": customer_id,

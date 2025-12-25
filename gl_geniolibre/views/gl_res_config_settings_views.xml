@@ -18,6 +18,8 @@
                             <field name="facebook_redirect_uri" title="APP Key"/>
                             <label class="col-lg-3 mt-3" string="Facebook Page Access Tokens" for="user_access_token"/>
                             <field name="user_access_token" title="APP Key"/>
+                            <label class="col-lg-3 mt-3" string="API Version" for="facebook_api_version"/>
+                            <field name="facebook_api_version"/>
                             <div class="content-group">
                                 <div class="mt8">
                                     <button string="Connectar con Facebook" icon="fa-facebook" type="object"
