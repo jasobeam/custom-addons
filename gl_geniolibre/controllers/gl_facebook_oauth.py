@@ -13,8 +13,8 @@ class gl_facebook_oauth_controller(http.Controller):
 
     @http.route('/facebook-auth', type='http', auth='public', website=True, csrf=False)
     def facebook_auth_callback(self, **kw):
-        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
-
+        API_VERSION = request.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
+        print(API_VERSION)
         """ Handle TikTok OAuth callback """
         # Get AWS and Facebook credentials
         facebook_app_id = request.env['ir.config_parameter'].sudo().get_param('gl_facebook.app_id')

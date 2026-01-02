@@ -15,6 +15,13 @@ API_VERSION = None
 LinkedIn_Version = "202505"
 
 
+class GlJsonViewerWizard(models.TransientModel):
+    _name = 'gl.json.viewer.wizard'
+    _description = 'JSON Viewer'
+
+    json_content = fields.Text(string="Resultado", readonly=True)
+
+
 class red_social_reporte(models.Model):
     _name = 'red.social_reporte'
     _description = 'Redes Sociales para reporte'
@@ -219,11 +226,8 @@ class project_project(models.Model):
         if not redes:
             raise ValidationError("Debe seleccionar al menos una red social antes de descargar campañas.")
 
-        if "GoogleAds" in redes:
-            self.fetch_google_campaigns()
-
-        if "MetaAds" in redes or "Facebook" in redes:
-            self.fetch_facebook_campaigns()
+        self.fetch_google_campaigns()
+        self.fetch_facebook_campaigns()
 
         return True
 
@@ -321,7 +325,6 @@ class project_project(models.Model):
             raise ValidationError(f"Faltan las siguientes credenciales en la configuración técnica: {missing_creds}")
 
         CampaignGA = self.env['google.ad.campaigns'].sudo()
-
         for record in self:
             # Validar cuenta de Google Ads
             account = record.partner_id_google_ads_account
@@ -361,7 +364,6 @@ class project_project(models.Model):
             # Ejecutar query y procesar respuesta
             response = service.search(customer_id=account, query=query)
             api_ids = [str(row.campaign.id) for row in response]
-
             # Crear campañas
             for row in response:
                 CampaignGA.create({
@@ -390,8 +392,6 @@ class project_project(models.Model):
     def get_facebook_data(self, since, until):
         API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
         BASE_URL = f"https://graph.facebook.com/{API_VERSION}/{self.partner_facebook_page_id}"
-        print("Iniciamos Facebook Data")
-
         # ==========================
         # 📊 MÉTRICAS DE PÁGINA (v24)
         # ==========================
@@ -417,7 +417,6 @@ class project_project(models.Model):
         while url:
             response = requests.get(url, params=params if '?' not in url else {}, timeout=15)
             response.raise_for_status()
-            print("While URL", response.json())
             result = response.json()
 
             all_data.extend(result.get('data', []))
@@ -468,7 +467,6 @@ class project_project(models.Model):
 
         while post_url and page_count < max_pages:
             post_response = requests.get(post_url, params=post_params, timeout=20)
-            print("while post_url", post_response.json())
             post_response.raise_for_status()
             post_result = post_response.json()
 
@@ -513,9 +511,6 @@ class project_project(models.Model):
             page_count += 1
 
         resumen_por_tipo = dict(post_type_data)
-        print("Totals", totals)
-        print("Resumen", resumen_por_tipo)
-        print("top_posts", posts_matrix)
         return {
             'totals': totals,
             'post_type_summary': resumen_por_tipo,
@@ -1111,8 +1106,6 @@ class project_project(models.Model):
         print(posts)
         exit()
 
-
-
         # --- 1. organizationPageStatistics ---
         page_views_total = 0
         page_unique_views_total = 0
@@ -1329,7 +1322,7 @@ class project_project(models.Model):
         try:
             # ⚡ Llamar a la función normal de reporte pero en modo JSON
             result = self.with_context(raw_json=True).action_generate_report()
-
+            print(result)
             data = {}
             if isinstance(result, dict) and "data" in result:
                 data = result["data"]
@@ -1343,12 +1336,17 @@ class project_project(models.Model):
             json_text = json.dumps(resumen, indent=2, ensure_ascii=False)
 
             # 📋 Acción cliente → copiar al portapapeles
+            wizard = self.env['gl.json.viewer.wizard'].create({
+                'json_content': json_text
+            })
+
             return {
-                "type": "ir.actions.client",
-                "tag": "clipboard_copy",
-                "params": {
-                    "content": json_text
-                },
+                'type': 'ir.actions.act_window',
+                'name': 'Resultado JSON',
+                'res_model': 'gl.json.viewer.wizard',
+                'view_mode': 'form',
+                'res_id': wizard.id,
+                'target': 'new',  # 👈 modal
             }
 
         except ValidationError:
@@ -1509,7 +1507,7 @@ class project_project(models.Model):
                 chunk_end_ts = int(chunk_end_dt.timestamp())
 
                 chunks.append((chunk_start_ts, chunk_end_ts))
-                print("fechas en chunk",chunk_start_ts,chunk_end_ts)
+                print("fechas en chunk", chunk_start_ts, chunk_end_ts)
 
             # Iterar sobre las fuentes seleccionadas
             for source in selected_sources:
@@ -1608,112 +1606,142 @@ class project_project(models.Model):
 
 
 def resumir_reporte(data: dict) -> dict:
-    """Compacta el reporte para IA: métricas clave + top posts/campañas"""
+    """
+    Compacta el reporte final para IA.
+    Usa estructuras generadas por:
+    - merge_final_facebook_data
+    - merge_final_instagram_data
+    - merge_final_metaads_data
+    - merge_final_google_ads_data
+    """
+
     resumen = {
         "Cliente": data.get("partner_name"),
-        "Periodo": data.get("report_period")
+        "Periodo": data.get("report_period"),
     }
-    # ---------------- Facebook ----------------
+
+    # =========================
+    # 📘 FACEBOOK
+    # =========================
     fb = data.get("facebook_data", {})
     if fb:
         totals = fb.get("totals", {})
+
         resumen["Facebook"] = {
-            "Impresiones": totals.get("page_impressions", 0),
-            "Alcance Único": totals.get("page_impressions_unique", 0),
-            "Fans": totals.get("page_fans", 0),
+            "Views": totals.get("page_media_view", 0),
             "Engagements": totals.get("page_post_engagements", 0),
+            "Followers": totals.get("page_follows", 0),
+            "Followers Diff": totals.get("followers_diff", 0),
+            "Engagement Rate (%)": totals.get("engagement_rate", 0),
             "Posts": sum(v.get("posts", 0) for v in fb.get("post_type_summary", {}).values()),
         }
-        resumen["Facebook"]["Top Posts"] = [{
-            "Tipo": p.get("type"),
-            "Alcance": p.get("reach"),
-            "Reacciones": p.get("reactions"),
-            "Mensaje": (p.get("message") or "")[:80] + "...",
-            "URL": p.get("picture_url"),
-        } for p in fb.get("top_posts", [])]
 
-    # ---------------- Instagram ----------------
+        resumen["Facebook"]["Top Posts"] = [
+            {
+                "Tipo": p.get("type"),
+                "Views": p.get("views"),
+                "Reacciones": p.get("reactions"),
+                "Comentarios": p.get("comments"),
+                "Shares": p.get("shares"),
+                "Texto": (p.get("message") or "")[:80],
+                "URL": p.get("permalink"),
+            }
+            for p in fb.get("top_posts", [])[:5]
+        ]
+
+    # =========================
+    # 📸 INSTAGRAM
+    # =========================
     ig = data.get("instagram_data", {})
     if ig:
         totals = ig.get("totals", {})
-        resumen["Instagram"] = {
-            "Alcance": totals.get("reach", 0),
-            "Engagements": totals.get("accounts_engaged", 0),
-            "Interacciones": totals.get("total_interactions", 0),
-            "Seguidores": ig.get("account_metrics", {}).get("followers_count", 0),
-        }
-        resumen["Instagram"]["Top Posts"] = [{
-            "Tipo": p.get("media_type"),
-            "Alcance": p.get("reach"),
-            "Interacciones": p.get("total_interactions"),
-            "Likes": p.get("likes"),
-            "Caption": (p.get("caption") or "")[:80] + "...",
-            "URL": p.get("permalink"),
-        } for p in ig.get("top_posts", [])]
+        account = ig.get("account_metrics", {})
 
-    # ---------------- Meta Ads ----------------
-    ads = data.get("meta_ads_data", {})
-    if ads:
-        summary = ads.get("summary", {})
+        resumen["Instagram"] = {
+            "Reach": totals.get("reach", 0),
+            "Interacciones": totals.get("total_interactions", 0),
+            "Cuentas Comprometidas": totals.get("accounts_engaged", 0),
+            "Followers": account.get("followers_count", 0),
+            "Posts": account.get("media_count", 0),
+        }
+
+        resumen["Instagram"]["Top Posts"] = [
+            {
+                "Tipo": p.get("media_type"),
+                "Reach": p.get("reach"),
+                "Interacciones": p.get("total_interactions"),
+                "Likes": p.get("likes"),
+                "Texto": (p.get("caption") or "")[:80],
+                "URL": p.get("permalink"),
+            }
+            for p in ig.get("top_posts", [])[:5]
+        ]
+
+    # =========================
+    # 📢 META ADS
+    # =========================
+    meta = data.get("meta_ads_data", {})
+    if meta:
+        summary = meta.get("summary", {})
+
         resumen["Meta Ads"] = {
             "Campañas": summary.get("total_campaigns", 0),
             "Impresiones": summary.get("impressions", 0),
             "Clicks": summary.get("clicks", 0),
-            "Alcance": summary.get("reach", 0),
+            "Reach": summary.get("reach", 0),
             "Gasto": summary.get("spend", 0),
-            "CTR": summary.get("ctr", 0),
+            "CTR (%)": summary.get("ctr", 0),
             "CPC": summary.get("cpc", 0),
             "CPM": summary.get("cpm", 0),
             "Conversaciones": summary.get("total_conversaciones", 0),
         }
 
-        resumen["Meta Ads"]["Top Campaigns"] = []
-        for c in ads.get("campaigns", []):
-            total_imp = float(c.get("impressions", 0)) or 1
-            total_clicks = float(c.get("clicks", 0)) or 1
-
-            # 🔽 resumir Edad/Género
-            resumen_edad_genero = []
-            for item in c.get("breakdowns", {}).get("age_gender", []):
-                imp = float(item.get("impressions", 0))
-                clk = float(item.get("clicks", 0))
-                resumen_edad_genero.append({
-                    "segmento": f"{item.get('age', '')} {item.get('gender', '')}".strip(),
-                    "impressions": imp,
-                    "clicks": clk,
-                    "pct_impressions": round((imp / total_imp) * 100, 2),
-                    "pct_clicks": round((clk / total_clicks) * 100, 2),
-                })
-
-            # 🔽 resumir Plataforma/Dispositivo
-            resumen_platform_device = []
-            for item in c.get("breakdowns", {}).get("platform_device", []):
-                imp = float(item.get("impressions", 0))
-                clk = float(item.get("clicks", 0))
-                resumen_platform_device.append({
-                    "segmento": f"{item.get('publisher_platform', '')} {item.get('impression_device', '')}".strip(),
-                    "impressions": imp,
-                    "clicks": clk,
-                    "pct_impressions": round((imp / total_imp) * 100, 2),
-                    "pct_clicks": round((clk / total_clicks) * 100, 2),
-                })
-
-            resumen["Meta Ads"]["Top Campaigns"].append({
+        resumen["Meta Ads"]["Top Campaigns"] = [
+            {
                 "Nombre": c.get("name"),
-                "Impresiones": float(c.get("impressions", 0)),
-                "Clicks": float(c.get("clicks", 0)),
-                "Alcance": float(c.get("reach", 0)),
-                "Gasto": float(c.get("spend", 0)),
-                "CTR": float(c.get("ctr", 0)),
-                "CPC": float(c.get("cpc", 0)),
                 "Estado": c.get("status"),
-                "Breakdowns": {
-                    "Edad_Genero": resumen_edad_genero,
-                    "Plataforma_Dispositivo": resumen_platform_device
-                }
-            })
+                "Impresiones": c.get("impressions"),
+                "Clicks": c.get("clicks"),
+                "Reach": c.get("reach"),
+                "Gasto": c.get("spend"),
+                "CTR (%)": c.get("ctr"),
+                "CPC": c.get("cpc"),
+            }
+            for c in meta.get("campaigns", [])[:5]
+        ]
+
+    # =========================
+    # 🔍 GOOGLE ADS
+    # =========================
+    ga = data.get("google_ads_data", {})
+    if ga:
+        summary = ga.get("summary", {})
+
+        resumen["Google Ads"] = {
+            "Campañas": summary.get("total_campaigns", 0),
+            "Impresiones": summary.get("impressions", 0),
+            "Clicks": summary.get("clicks", 0),
+            "Gasto": summary.get("spend", 0),
+            "CTR (%)": summary.get("ctr", 0),
+            "CPC": summary.get("cpc", 0),
+            "Conversiones": summary.get("conversions", 0),
+            "Costo por Conversión": summary.get("cost_per_conversion", 0),
+        }
+
+        resumen["Google Ads"]["Top Keywords"] = [
+            {
+                "Keyword": k.get("keyword"),
+                "Clicks": k.get("clicks"),
+                "Impresiones": k.get("impressions"),
+                "Conversiones": k.get("conversions"),
+                "Costo": k.get("cost"),
+                "Costo/Conv": k.get("cost_per_conversion"),
+            }
+            for k in ga.get("keywords_summary", [])[:5]
+        ]
 
     return resumen
+
 
 
 def merge_final_google_ads_data(data_list):
@@ -1942,7 +1970,7 @@ def merge_final_facebook_data(chunks):
             'page_media_view': 0,
             'page_views_total': 0,
             'page_post_engagements': 0,
-            'page_follows': 0,   # reemplaza page_fans
+            'page_follows': 0,  # reemplaza page_fans
         },
         'post_type_summary': {},
         'top_posts': []
@@ -2016,11 +2044,7 @@ def merge_final_facebook_data(chunks):
     # ==========================
     # 🏆 TOP 5 POSTS POR VIEWS
     # ==========================
-    merged['top_posts'] = sorted(
-        merged['top_posts'],
-        key=lambda x: x.get('views', 0),
-        reverse=True
-    )[:5]
+    merged['top_posts'] = sorted(merged['top_posts'], key=lambda x: x.get('views', 0), reverse=True)[:5]
 
     def calculate_followers_diff(page_follows_values):
         """
@@ -2212,5 +2236,4 @@ def merge_final_linkedin_data(chunk_results):
         cleaned["time_range"] = last_time_range
 
     print("🧩 [LinkedIn] Datos combinados:\n", json.dumps(cleaned, indent=4, ensure_ascii=False))
-    exit()
-    # return cleaned
+    exit()  # return cleaned
