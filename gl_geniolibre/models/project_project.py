@@ -78,7 +78,8 @@ class FacebookAdCampaigns(models.Model):
     name = fields.Char('Nombre')
     campaign_id = fields.Char('ID de Campaña', required=True)
     account_id = fields.Char('ID Cuenta Publicitaria')
-    project_id = fields.Many2one('project.project', string='Proyecto')  # Relación inversa
+    project_id = fields.Many2one('project.project', string='Proyecto', required=True, ondelete='cascade')
+
 
 
 class project_project(models.Model):
@@ -220,37 +221,57 @@ class project_project(models.Model):
         """
         self.ensure_one()
 
-        # Redes desde contexto (flujo) o desde el propio proyecto
-        redes = self.env.context.get("redes_seleccionadas") or self.red_social_report_ids.mapped("name")
+        FacebookCampaign = self.env['facebook.ad.campaigns'].sudo()
 
-        if not redes:
-            raise ValidationError("Debe seleccionar al menos una red social antes de descargar campañas.")
+        if not self.partner_id_facebook_ad_account:
+            # 🔥 No existe cuenta Facebook → borrar TODO
+            FacebookCampaign.search([]).unlink()
+        else:
+            # Existe cuenta Facebook → ejecutar Google
+            self.fetch_google_campaigns()
 
-        self.fetch_google_campaigns()
-        self.fetch_facebook_campaigns()
+        # =========================
+        # GOOGLE ADS
+        # =========================
+        GoogleCampaign = self.env['google.ad.campaigns'].sudo()
+
+        if not self.partner_id_google_ads_account:
+            # 🔥 No existe cuenta Google → borrar TODO
+            GoogleCampaign.search([]).unlink()
+        else:
+            # Existe cuenta Google → ejecutar Facebook
+            self.fetch_facebook_campaigns()
 
         return True
+    def fetch_facebook_campaigns(self):
+        self.ensure_one()
 
-    def fetch_facebook_campaigns(self):  # Optimizado
-        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
+        # 1. Validar cuenta
+        if not self.partner_id_facebook_ad_account:
+            return
 
-        # 1. Eliminar TODAS las campañas existentes para esta cuenta
-        self.env['facebook.ad.campaigns'].search([]).unlink()
-        # Validar token de acceso
+        Campaign = self.env['facebook.ad.campaigns'].sudo()
+
+        # 2. Borrar SOLO campañas de este proyecto
+        Campaign.search([]).unlink()
+
+
+        # 3. Token
         access_token = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_key')
         if not access_token:
             raise ValidationError("No existe un token válido")
 
-        # Validar fechas y asegurar que sean del tipo correcto (date)
-        since_date = self.date_start if isinstance(self.date_start, fields.Date) else self.date_start
-        until_date = self.date if isinstance(self.date, fields.Date) else self.date
+        API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
 
+        # 4. Fechas
+        since_date = self.date_start
+        until_date = self.date
         if isinstance(since_date, datetime):
             since_date = since_date.date()
         if isinstance(until_date, datetime):
             until_date = until_date.date()
 
-        # Realizar consulta API para campañas activas
+        # 5. API
         url = f"https://graph.facebook.com/{API_VERSION}/act_{self.partner_id_facebook_ad_account}/campaigns"
         params = {
             'access_token': access_token,
@@ -258,6 +279,7 @@ class project_project(models.Model):
             'effective_status': '["ACTIVE"]',
             'limit': 1000,
         }
+
         response = requests.get(url, params=params)
         if response.status_code != 200:
             error = response.json().get('error', {}).get('message', 'Error desconocido')
@@ -267,49 +289,25 @@ class project_project(models.Model):
         if not campaigns:
             return
 
-        # Filtrar campañas activas dentro del rango de fechas
-        filtered_campaigns = [camp for camp in campaigns if
-                              self._is_campaign_within_range(camp, since_date, until_date)]
+        filtered_campaigns = [c for c in campaigns if self._is_campaign_within_range(c, since_date, until_date)]
 
-        # Registrar o actualizar campañas en Odoo
-        CampaignModel = self.env['facebook.ad.campaigns'].sudo()
-        existing_campaign_ids = CampaignModel.search_read([
-            ('account_id', '=', self.partner_id_facebook_ad_account)
-        ], [
-            'campaign_id'
-        ])
-        existing_campaign_ids = {rec['campaign_id'] for rec in existing_campaign_ids}
-
-        new_campaign_ids = set()
+        # 6. Crear campañas del proyecto
         for campaign in filtered_campaigns:
-            campaign_id = campaign['id']
-            new_campaign_ids.add(campaign_id)
+            Campaign.create({
+                'name': campaign['name'],
+                'campaign_id': campaign['id'],
+                'account_id': self.partner_id_facebook_ad_account,
+                'project_id': self.id,
+            })
 
-            # Actualizar si existe, sino crear nuevo
-            existing_campaign = CampaignModel.search([
-                ('campaign_id', '=', campaign_id)
-            ], limit=1)
-            if existing_campaign:
-                existing_campaign.write({
-                    'name': campaign['name']
-                })
-            else:
-                CampaignModel.create({
-                    'name': campaign['name'],
-                    'campaign_id': campaign_id,
-                    'account_id': self.partner_id_facebook_ad_account,
-                })
+    def fetch_google_campaigns(self):
+        self.ensure_one()
+        CampaignGA = self.env['google.ad.campaigns'].sudo()
 
-        # Eliminar campañas obsoletas
-        to_remove = existing_campaign_ids.difference(new_campaign_ids)
-        if to_remove:
-            CampaignModel.search([
-                ('account_id', '=', self.partner_id_facebook_ad_account),
-                ('campaign_id', 'in', list(to_remove)),
-            ]).unlink()
+        # 🔥 6. Limpiar campañas previas del proyecto
+        CampaignGA.search([]).unlink()
 
-    def fetch_google_campaigns(self):  # Optimizado
-        # Obtener configuración técnica
+        # 1. Obtener configuración técnica
         cfg = self.env['ir.config_parameter'].sudo()
         credenciales = {
             'developer_token': cfg.get_param('gl_google.developer_token'),
@@ -319,65 +317,57 @@ class project_project(models.Model):
             'login_customer_id': cfg.get_param('gl_google.login_customer_id'),
         }
 
-        # Validar que todas las credenciales existan
+        # 2. Validar credenciales
         if not all(credenciales.values()):
-            missing_creds = ", ".join([k for k, v in credenciales.items() if not v])
-            raise ValidationError(f"Faltan las siguientes credenciales en la configuración técnica: {missing_creds}")
+            missing = ", ".join(k for k, v in credenciales.items() if not v)
+            raise ValidationError(f"Faltan las siguientes credenciales en la configuración técnica: {missing}")
 
-        CampaignGA = self.env['google.ad.campaigns'].sudo()
-        for record in self:
-            # Validar cuenta de Google Ads
-            account = record.partner_id_google_ads_account
-            if not account:
-                raise ValidationError("El proyecto no tiene una cuenta de Google Ads asignada.")
+        # 3. Validar cuenta Google Ads
+        account = self.partner_id_google_ads_account
+        if not account:
+            raise ValidationError("El proyecto no tiene una cuenta de Google Ads asignada.")
 
-            # Validar fechas del proyecto
-            since_date = record.date_start
-            until_date = record.date
-            if not since_date or not until_date:
-                raise ValidationError("Por favor define las fechas de inicio y fin del proyecto.")
+        # 4. Validar fechas
+        since_date = self.date_start
+        until_date = self.date
+        if not since_date or not until_date:
+            raise ValidationError("Por favor define las fechas de inicio y fin del proyecto.")
 
-            # Configurar cliente de Google Ads
-            client = GoogleAdsClient.load_from_dict({
-                **credenciales,
-                'use_proto_plus': True,
+        since_str = since_date.strftime('%Y-%m-%d')
+        until_str = until_date.strftime('%Y-%m-%d')
+
+        # 5. Configurar cliente Google Ads
+        client = GoogleAdsClient.load_from_dict({
+            **credenciales,
+            'use_proto_plus': True,
+        })
+        service = client.get_service('GoogleAdsService')
+
+
+
+        # 7. Query: campañas con impresiones en el rango
+        query = f"""
+            SELECT
+                campaign.id,
+                campaign.name,
+                campaign.status,
+                metrics.impressions
+            FROM campaign
+            WHERE
+                segments.date BETWEEN '{since_str}' AND '{until_str}'
+                AND metrics.impressions > 0
+        """
+
+        # 8. Ejecutar query y crear campañas
+        response = service.search(customer_id=account, query=query)
+
+        for row in response:
+            CampaignGA.create({
+                'campaign_id': str(row.campaign.id),
+                'name': row.campaign.name,
+                'account_id': account,
+                'project_id': self.id,
             })
-            service = client.get_service('GoogleAdsService')
-
-            # Limpiar campañas previas asociadas a esta cuenta
-            existing_campaigns = CampaignGA.search([
-                ('account_id', '=', account)
-            ])
-            existing_campaigns.unlink()
-
-            # Formatear fechas en 'YYYY-MM-DD'
-            since_str, until_str = since_date.strftime('%Y-%m-%d'), until_date.strftime('%Y-%m-%d')
-
-            # Definir query para campañas con impresiones
-            query = f"""
-                SELECT campaign.id, campaign.name, campaign.status, metrics.impressions
-                FROM campaign
-                WHERE segments.date BETWEEN '{since_str}' AND '{until_str}'
-                  AND metrics.impressions > 0
-            """
-
-            # Ejecutar query y procesar respuesta
-            response = service.search(customer_id=account, query=query)
-            api_ids = [str(row.campaign.id) for row in response]
-            # Crear campañas
-            for row in response:
-                CampaignGA.create({
-                    'campaign_id': str(row.campaign.id),
-                    'name': row.campaign.name,
-                    'account_id': account,
-                    'project_id': record.id,
-                })
-
-            # Eliminar campañas obsoletas
-            CampaignGA.search([
-                ('account_id', '=', account),
-                ('campaign_id', 'not in', api_ids),
-            ]).unlink()
 
     def _is_campaign_within_range(self, campaign, since_date, until_date):  # optimizado
         """Valida que la campaña esté dentro del rango de fechas."""

@@ -49,11 +49,11 @@
     <record id="action_gl_contenido_flujo" model="ir.actions.act_window">
         <field name="name">Flujo de Contenido</field>
         <field name="res_model">gl.contenido.flujo</field>
-        <field name="view_mode">kanban,list,form</field>
+        <field name="view_mode">kanban,list,form,calendar</field>
         <field name="search_view_id" ref="view_gl_contenido_flujo_search"/>
     </record>
 
-    <!-- Vista Kanban -->
+    <!-- Vista Kanban General-->
     <record id="view_gl_contenido_flujo_kanban" model="ir.ui.view">
         <field name="name">gl.contenido.flujo.kanban</field>
         <field name="model">gl.contenido.flujo</field>
@@ -103,7 +103,28 @@
         </field>
     </record>
 
-    <!-- Vista formulario -->
+    <!-- Vista Calendario General-->
+    <record id="view_gl_contenido_flujo_calendar" model="ir.ui.view">
+
+        <field name="name">gl.contenido.flujo.calendar</field>
+        <field name="model">gl.contenido.flujo</field>
+        <field name="arch" type="xml">
+
+            <calendar
+                    string="Calendario de Contenidos"
+                    date_start="fecha_presentacion"
+                    color="etapa"
+                    mode="month">
+
+                <field name="name" string="Cliente"/>
+                <field name="etapa" string="Etapa"/>
+            </calendar>
+
+        </field>
+    </record>
+
+
+    <!-- Vista formulario General-->
     <record id="view_gl_contenido_flujo_form" model="ir.ui.view">
         <field name="name">gl.contenido.flujo.form</field>
         <field name="model">gl.contenido.flujo</field>
@@ -125,9 +146,9 @@
                                 string="Generar Propuestas de Contenido"
                                 class="btn-primary"
                                 invisible="etapa != 'ideas'"/>
-                        <button name="refinar_propuestas"
+                        <button name="etapa_perfeccionamiento"
                                 type="object"
-                                string="Refinar Propuestas"
+                                string="Pasar a Refinamiento"
                                 class="btn-primary"
                                 invisible="etapa != 'reunion'"/>
                         <button name="generar_tareas"
@@ -153,6 +174,7 @@
                             <field name="project_id"/>
                             <field name="etapa" invisible="1"/>
                             <field name="redes_ids" widget="many2many_tags"/>
+                            <field name="fecha_presentacion"/>
                         </group>
 
                         <!-- Columna derecha -->
@@ -230,7 +252,7 @@
                                         string="Ver Calendario"
                                         class="btn-secondary"
                                         icon="fa-calendar"/>
-                                <button name="refinar_propuestas"
+                                <button name="generate_prompt_reunion"
                                         type="object"
                                         string="Generar Prompt"
                                         class="btn-primary"
@@ -295,7 +317,7 @@
         </field>
     </record>
 
-    <!-- Vista árbol -->
+    <!-- Vista árbol General-->
     <record id="view_gl_contenido_flujo_tree" model="ir.ui.view">
         <field name="name">gl.contenido.flujo.list</field>
         <field name="model">gl.contenido.flujo</field>
@@ -311,7 +333,7 @@
     <record id="action_gl_contenido_flujo" model="ir.actions.act_window">
         <field name="name">Flujo de Contenido</field>
         <field name="res_model">gl.contenido.flujo</field>
-        <field name="view_mode">kanban,list,form</field>
+        <field name="view_mode">kanban,list,form,calendar</field>
     </record>
 
     <!-- Menú dentro de Project -->
@@ -368,7 +390,8 @@
                                 <field name="hashtags" colspan="2"/>
                                 <field name="recomendaciones" colspan="2"/>
                             </group>
-                        </page><page string="Cambios Solicitados">
+                        </page>
+                        <page string="Cambios Solicitados">
                             <group col="2">
                                 <field name="cambios" colspan="2"/>
                             </group>

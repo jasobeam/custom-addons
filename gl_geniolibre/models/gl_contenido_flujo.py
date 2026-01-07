@@ -4,6 +4,7 @@ import pytz
 from odoo import models, fields
 from odoo.exceptions import ValidationError
 from datetime import datetime
+from datetime import timedelta
 
 
 class GeneradorContenidoPropuesta(models.Model):
@@ -39,6 +40,8 @@ class GeneradorContenidoFlujo(models.Model):
         "mail.thread",
         "mail.activity.mixin"
     ]
+    fecha_presentacion = fields.Datetime(string="Fecha de Presentación", tracking=True, help="Fecha en la que se presenta o entrega el flujo de contenido")
+
     date_start = fields.Date(string="Fecha de Inicio", tracking=True, help="Fecha de inicio del rango de planificación o análisis.")
     date = fields.Date(string="Fecha de Fin", tracking=True, help="Fecha de fin del rango de planificación o análisis.")
     plan_cliente = fields.Char(string="Plan del Cliente", related="partner_id.plan_descripcion", readonly=True)
@@ -211,6 +214,18 @@ class GeneradorContenidoFlujo(models.Model):
             }
         }
 
+    def etapa_perfeccionamiento(self):
+        # --- Cambiar la etapa del flujo ---
+        for record in self:
+            record.etapa = "refinar"
+            return {
+                "effect": {
+                    "fadeout": "slow",
+                    "message": "✅ Propuestas creadas correctamente desde JSON.",
+                    "type": "rainbow_man",
+                }
+            }
+
     def aceptar_refinamiento(self):
 
         for record in self:
@@ -267,17 +282,7 @@ class GeneradorContenidoFlujo(models.Model):
                 else:
                     raise ValidationError(f"No se encontró ningún campo válido para actualizar en la publicación ID {pub_id}.")
 
-            # --- Cambiar la etapa del flujo ---
-            record.etapa = "refinar"
-            return {
-                "effect": {
-                    "fadeout": "slow",
-                    "message": "✅ Propuestas creadas correctamente desde JSON.",
-                    "type": "rainbow_man",
-                }
-            }
-
-    def refinar_propuestas(self):
+    def generate_prompt_reunion(self):
         for record in self:
             # --- Filtrar publicaciones no aprobadas ---
             publicaciones = record.publicacion_ids.filtered(lambda p: not p.aprobado)
@@ -374,6 +379,13 @@ class GeneradorContenidoFlujo(models.Model):
 
     def generar_tareas(self):
 
+        def _format_hashtags(hashtags):
+            if not hashtags:
+                return ""
+            if isinstance(hashtags, list):
+                return " ".join(h.strip() for h in hashtags if h)
+            return str(hashtags).strip()
+
         TIPO_MAP = {
             "post": "feed",
             "feed": "feed",
@@ -385,7 +397,6 @@ class GeneradorContenidoFlujo(models.Model):
             "video_stories": "video_stories",
         }
 
-        action_result = None
         for record in self:
             if not record.project_id:
                 raise ValidationError("Debes seleccionar un Proyecto antes de generar tareas.")
@@ -396,87 +407,79 @@ class GeneradorContenidoFlujo(models.Model):
 
             no_aprobadas = propuestas.filtered(lambda p: not getattr(p, "aprobado", False))
             if no_aprobadas:
-                action_result = {
+                return {
                     "type": "ir.actions.client",
                     "tag": "display_notification",
                     "params": {
                         "title": "⚠️ Publicaciones sin aprobar",
-                        "message": (f"Hay {len(no_aprobadas)} propuestas/publicaciones sin aprobar. "
-                                    "Revísalas y márcalas como aprobadas antes de generar tareas."),
+                        "message": f"Hay {len(no_aprobadas)} publicaciones sin aprobar.",
                         "type": "warning",
                         "sticky": True,
                     },
                 }
-                return action_result
 
-            partner_id = record.partner_id.id if getattr(record, "partner_id", False) else False
+            partner_id = record.partner_id.id if record.partner_id else False
             redes_ids = record.redes_ids.ids if getattr(record, "redes_ids", False) else []
             asignados_ids = record.user_ids.ids if getattr(record, "user_ids", False) else []
 
+            Task = self.env["project.task"]
             created_count = 0
+
             for prop in propuestas:
+                if not prop.fecha_publicacion:
+                    raise ValidationError("Todas las publicaciones deben tener Fecha de Publicación.")
+
                 tipo_src = (prop.tipo or "").strip().lower()
                 tipo_task = TIPO_MAP.get(tipo_src, "otro")
+
+                fecha_deadline = fields.Datetime.from_string(prop.fecha_publicacion)
+                fecha_deadline = fecha_deadline - timedelta(days=1)
+                fecha_deadline = fecha_deadline.replace(hour=12, minute=0, second=0, microsecond=0)
+
+                hashtags_txt = _format_hashtags(prop.hashtags)
+
+                description = (f"{(prop.descripcion or '').strip()}\n\n"
+                               f"Texto en diseño:\n{(prop.texto_en_diseno or '').strip()}\n\n"
+                               f"Copy:\n{(prop.copy or '').strip()}\n\n"
+                               f"Hashtags:\n{hashtags_txt}")
 
                 vals = {
                     "name": (prop.titulo or f"Publicación #{prop.id}").strip(),
                     "project_id": record.project_id.id,
                     "user_ids": [
                         (6, 0, asignados_ids)
-                    ],  # m2m asignación
-                    "fecha_publicacion": prop.fecha_publicacion,  # requiere campo en project.task
-                    "date_deadline": prop.fecha_publicacion,  # misma fecha
-                    "tipo": tipo_task,  # selección válida en project.task
+                    ],
+                    "fecha_publicacion": prop.fecha_publicacion,
+                    "date_deadline": fecha_deadline,
+                    "tipo": tipo_task,
                     "red_social_ids": [
                         (6, 0, redes_ids)
-                    ],  # m2m desde flujo
-                    "hashtags": (prop.hashtags or "").strip(),
-                    "texto_en_diseno": (prop.texto_en_diseno or "").strip(),
+                    ],
                     "partner_id": partner_id,
                     "post_estado": "Pendiente",
+                    "texto_en_diseno": (prop.texto_en_diseno or "").strip(),
+                    "hashtags": hashtags_txt,
+                    "description": description,
                 }
-                self.env["project.task"].create(vals)
+
+                Task.create(vals)
                 created_count += 1
 
-            # Cambiar etapa del flujo
             record.etapa = "publicaciones"
+
             return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "title": "✅ Tareas de publicaciones creadas",
-                    "message": (
-                        f"Se crearon {created_count} tareas en el proyecto “{record.project_id.display_name}”." if created_count > 1 else f"Se creó 1 tarea en el proyecto “{record.project_id.display_name}”."),
-                    "type": "success",
-                    "sticky": False,
-                    "next": {
-                        "type": "ir.actions.act_window",
-                        "res_model": "project.task",
-                        "views": [
-                            [
-                                False,
-                                "kanban"
-                            ]
-                        ],  # 👈 abre directamente vista Kanban
-                        "view_mode": "kanban,tree,form",
-                        "domain": [
-                            [
-                                "project_id",
-                                "=",
-                                record.project_id.id
-                            ]
-                        ],  # 👈 solo tareas de ese proyecto
-                        "target": "current",
-                        "name": "Tareas del Proyecto",
-                        "context": {
-                            "default_project_id": record.project_id.id,
-                            "search_default_project_id": record.project_id.id,
-                        },
-                    },
+                "type": "ir.actions.act_window",
+                "res_model": "project.task",
+                "view_mode": "kanban,list,form",
+                "domain": [
+                    ("project_id", "=", record.project_id.id)
+                ],
+                "name": "Tareas del Proyecto",
+                "context": {
+                    "default_project_id": record.project_id.id,
+                    "search_default_project_id": record.project_id.id,
                 },
             }
-
-        return action_result
 
     def previous_stage(self):
         etapa_order = [

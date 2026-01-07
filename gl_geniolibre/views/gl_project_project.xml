@@ -9,7 +9,7 @@
             <field name="arch" type="xml">
                 <xpath expr="//span[@name='partner_name']" position="after">
                     <field class="mb-2" name="project_type" widget="badge"/>
-                    <field name="description"/>
+                    <field name="description" />
                     <group invisible="project_type != 'marketing'">
                         <p class="mb-1 mt-2">
                             <strong>Plan:
@@ -48,8 +48,7 @@
                            invisible="project_type != 'marketing'"/>
 
 
-                    <field name="red_social_report_ids" widget="many2many_tags"
-                           placeholder="Selecciona las redes sociales..."/>
+                    <field name="red_social_report_ids" widget="many2many_tags" placeholder="Selecciona las redes sociales..." invisible="project_type != 'marketing'"/>
 
                     <button name="fetch_campaigns"
                             string="Campañas"
@@ -76,6 +75,8 @@
                 <form create="false" edit="false">
                     <field name="name"/>
                     <field name="campaign_id"/>
+                    <field name="account_id"/>
+                    <field name="project_id"/>
                 </form>
             </field>
         </record>
@@ -86,25 +87,10 @@
                 <list create="false" edit="false">
                     <field name="name"/>
                     <field name="campaign_id"/>
+                    <field name="account_id"/>
+                    <field name="project_id"/>
                 </list>
             </field>
         </record>
-        <record id="view_gl_json_viewer_wizard" model="ir.ui.view">
-            <field name="name">gl.json.viewer.wizard.form</field>
-            <field name="model">gl.json.viewer.wizard</field>
-            <field name="arch" type="xml">
-                <form string="Resultado JSON">
-                    <sheet>
-                        <group>
-                            <field name="json_content" nolabel="1" widget="text"/>
-                        </group>
-                    </sheet>
-                    <footer>
-                        <button string="Cerrar" class="btn-primary" special="cancel"/>
-                    </footer>
-                </form>
-            </field>
-        </record>
-
     </data>
 </odoo>
