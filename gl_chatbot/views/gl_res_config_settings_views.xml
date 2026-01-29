@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--     Extended res_config_settings form view-->
+    <record id="gl_chatbot_res_config_settings_view" model="ir.ui.view">
+        <field name="name">gl_chatbot_res_config_settings_view.inherit</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//form" position="inside">
+                <app data-string="AI Chatbot" string="Chatbot" name="Chatbot"
+                     logo="/gl_chatbot/static/description/icon.png">
+                    <block title="WhatsApp ChatBot">
+                        <div class="col-xs-12 row o_settings_container">
+                            <label class="col-lg-3" string="Token de verificación" for="whatsapp_verify_token"/>
+                            <field name="whatsapp_verify_token" title="Token de verificación"/>
+                            <label class="col-lg-3" string="Token API de (envío)" for="whatsapp_token_api"/>
+                            <field name="whatsapp_token_api" title="Token API de (envío)"/>
+                            <label class="col-lg-3" string="Clave API de OpenAI" for="openai_api_key"/>
+                            <field name="openai_api_key" title="Clave API de OpenAI"/>
+                            <label class="col-lg-3" string="Redirect URI" for="whatsapp_redirect_uri"/>
+                            <field name="whatsapp_redirect_uri" title="Redirect URI"/>
+
+                        </div>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

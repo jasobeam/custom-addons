@@ -81,7 +81,6 @@ class FacebookAdCampaigns(models.Model):
     project_id = fields.Many2one('project.project', string='Proyecto', required=True, ondelete='cascade')
 
 
-
 class project_project(models.Model):
     _inherit = "project.project"
     partner_id = fields.Many2one('res.partner')
@@ -243,6 +242,7 @@ class project_project(models.Model):
             self.fetch_facebook_campaigns()
 
         return True
+
     def fetch_facebook_campaigns(self):
         self.ensure_one()
 
@@ -254,7 +254,6 @@ class project_project(models.Model):
 
         # 2. Borrar SOLO campañas de este proyecto
         Campaign.search([]).unlink()
-
 
         # 3. Token
         access_token = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_key')
@@ -342,8 +341,6 @@ class project_project(models.Model):
             'use_proto_plus': True,
         })
         service = client.get_service('GoogleAdsService')
-
-
 
         # 7. Query: campañas con impresiones en el rango
         query = f"""
@@ -1626,18 +1623,15 @@ def resumir_reporte(data: dict) -> dict:
             "Posts": sum(v.get("posts", 0) for v in fb.get("post_type_summary", {}).values()),
         }
 
-        resumen["Facebook"]["Top Posts"] = [
-            {
-                "Tipo": p.get("type"),
-                "Views": p.get("views"),
-                "Reacciones": p.get("reactions"),
-                "Comentarios": p.get("comments"),
-                "Shares": p.get("shares"),
-                "Texto": (p.get("message") or "")[:80],
-                "URL": p.get("permalink"),
-            }
-            for p in fb.get("top_posts", [])[:5]
-        ]
+        resumen["Facebook"]["Top Posts"] = [{
+            "Tipo": p.get("type"),
+            "Views": p.get("views"),
+            "Reacciones": p.get("reactions"),
+            "Comentarios": p.get("comments"),
+            "Shares": p.get("shares"),
+            "Texto": (p.get("message") or "")[:80],
+            "URL": p.get("permalink"),
+        } for p in fb.get("top_posts", [])[:5]]
 
     # =========================
     # 📸 INSTAGRAM
@@ -1655,17 +1649,14 @@ def resumir_reporte(data: dict) -> dict:
             "Posts": account.get("media_count", 0),
         }
 
-        resumen["Instagram"]["Top Posts"] = [
-            {
-                "Tipo": p.get("media_type"),
-                "Reach": p.get("reach"),
-                "Interacciones": p.get("total_interactions"),
-                "Likes": p.get("likes"),
-                "Texto": (p.get("caption") or "")[:80],
-                "URL": p.get("permalink"),
-            }
-            for p in ig.get("top_posts", [])[:5]
-        ]
+        resumen["Instagram"]["Top Posts"] = [{
+            "Tipo": p.get("media_type"),
+            "Reach": p.get("reach"),
+            "Interacciones": p.get("total_interactions"),
+            "Likes": p.get("likes"),
+            "Texto": (p.get("caption") or "")[:80],
+            "URL": p.get("permalink"),
+        } for p in ig.get("top_posts", [])[:5]]
 
     # =========================
     # 📢 META ADS
@@ -1686,19 +1677,16 @@ def resumir_reporte(data: dict) -> dict:
             "Conversaciones": summary.get("total_conversaciones", 0),
         }
 
-        resumen["Meta Ads"]["Top Campaigns"] = [
-            {
-                "Nombre": c.get("name"),
-                "Estado": c.get("status"),
-                "Impresiones": c.get("impressions"),
-                "Clicks": c.get("clicks"),
-                "Reach": c.get("reach"),
-                "Gasto": c.get("spend"),
-                "CTR (%)": c.get("ctr"),
-                "CPC": c.get("cpc"),
-            }
-            for c in meta.get("campaigns", [])[:5]
-        ]
+        resumen["Meta Ads"]["Top Campaigns"] = [{
+            "Nombre": c.get("name"),
+            "Estado": c.get("status"),
+            "Impresiones": c.get("impressions"),
+            "Clicks": c.get("clicks"),
+            "Reach": c.get("reach"),
+            "Gasto": c.get("spend"),
+            "CTR (%)": c.get("ctr"),
+            "CPC": c.get("cpc"),
+        } for c in meta.get("campaigns", [])[:5]]
 
     # =========================
     # 🔍 GOOGLE ADS
@@ -1718,20 +1706,16 @@ def resumir_reporte(data: dict) -> dict:
             "Costo por Conversión": summary.get("cost_per_conversion", 0),
         }
 
-        resumen["Google Ads"]["Top Keywords"] = [
-            {
-                "Keyword": k.get("keyword"),
-                "Clicks": k.get("clicks"),
-                "Impresiones": k.get("impressions"),
-                "Conversiones": k.get("conversions"),
-                "Costo": k.get("cost"),
-                "Costo/Conv": k.get("cost_per_conversion"),
-            }
-            for k in ga.get("keywords_summary", [])[:5]
-        ]
+        resumen["Google Ads"]["Top Keywords"] = [{
+            "Keyword": k.get("keyword"),
+            "Clicks": k.get("clicks"),
+            "Impresiones": k.get("impressions"),
+            "Conversiones": k.get("conversions"),
+            "Costo": k.get("cost"),
+            "Costo/Conv": k.get("cost_per_conversion"),
+        } for k in ga.get("keywords_summary", [])[:5]]
 
     return resumen
-
 
 
 def merge_final_google_ads_data(data_list):

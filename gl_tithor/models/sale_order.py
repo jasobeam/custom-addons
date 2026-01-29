@@ -2,7 +2,9 @@ import base64, os, openpyxl, tempfile
 
 from odoo import fields, models
 from odoo.exceptions import ValidationError
+import logging
 
+_logger = logging.getLogger(__name__)
 
 class Camiseta_Registro(models.Model):
     _name = 'camiseta.registro'
@@ -84,23 +86,32 @@ class SaleOrder(models.Model):
             rec.is_image_true = True if rec.env[
                 'ir.config_parameter'].sudo().get_param('sale_product_image.is_show_product_image_in_sale_report') else False
 
+
     def importar_excel(self):
+        """Importa un archivo Excel con los registros de camisetas, validando y creando cada línea."""
         if not self.archivo_excel:
             raise ValidationError("Por favor, cargue un archivo Excel (.xlsx).")
 
         tmp_path = None
         try:
+            _logger.info("Iniciando proceso de importación de Excel...")
+
+            # --- 1) Guardar temporalmente el archivo Excel decodificado ---
             with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
                 tmp.write(base64.b64decode(self.archivo_excel))
                 tmp_path = tmp.name
 
-            libro = openpyxl.load_workbook(tmp_path, data_only=True)
+            _logger.info(f"Archivo Excel guardado temporalmente en: {tmp_path}")
+
+            # --- 2) Cargar workbook de forma segura ---
+            libro = openpyxl.load_workbook(tmp_path, data_only=True, read_only=True)
             hoja = libro.active
+            _logger.info(f"Hoja activa: {hoja.title} | Filas: {hoja.max_row}")
 
             registros = []
             registros_omitidos = 0
 
-            # Mapa de orden para las tallas
+            # Mapa de orden para tallas
             orden_tallas = {
                 '2': 0,
                 '4': 1,
@@ -119,16 +130,15 @@ class SaleOrder(models.Model):
                 '3xl': 14
             }
 
+            # --- 3) Iterar filas (evitar bloqueo en archivos grandes) ---
             for idx, fila in enumerate(hoja.iter_rows(min_row=2), start=2):
+                if idx % 200 == 0:
+                    _logger.info(f"Procesando fila {idx}...")
+
                 valores = [celda.value for celda in fila]
 
-                # --- 1) VALIDACIÓN DE CAMPOS OBLIGATORIOS -----------------------
-                #  • ‘talla_short’ YA NO es obligatorio
-                if (len(valores) < 8 or  # Longitud mínima
-                        not valores[2] or  # tipo
-                        not valores[4] or  # talla_camiseta
-                        not valores[6] or  # corte
-                        not valores[7]):  # manga
+                # Validaciones de campos mínimos
+                if (len(valores) < 8 or not valores[2] or not valores[4] or not valores[6] or not valores[7]):
                     registros_omitidos += 1
                     continue
 
@@ -136,11 +146,11 @@ class SaleOrder(models.Model):
                 tipo = valores[2]
                 numero = valores[3] if valores[3] is not None else ""
                 talla_camiseta = valores[4]
-                talla_short = valores[5]  # ← Puede ser None / ""
+                talla_short = valores[5]
                 corte = valores[6]
                 manga = valores[7]
 
-                # --- 2) NORMALIZAR TALLAS --------------------------------------
+                # Normalizar tallas
                 def normalizar_talla(talla):
                     if talla is not None and talla != "":
                         if isinstance(talla, (int, float)):
@@ -149,20 +159,21 @@ class SaleOrder(models.Model):
                             talla = str(talla).strip().lower()
                         if talla.isdigit() or talla in orden_tallas:
                             return talla
-                    return None  # Valor no válido
+                    return None
 
                 talla_camiseta = normalizar_talla(talla_camiseta)
                 talla_short = normalizar_talla(talla_short)
 
-                # Solo ‘talla_camiseta’ sigue siendo imprescindible
                 if not talla_camiseta:
                     registros_omitidos += 1
                     continue
 
-                # --- 3) AJUSTAR CAMPO 'manga' ----------------------------------
-                if isinstance(manga, str) and manga.strip().lower() == "manga_cero":
-                    manga = "manga_cero"
-                elif not manga:
+                # Normalizar campo manga
+                if isinstance(manga, str):
+                    manga = manga.strip().lower()
+                    if manga == "manga_cero":
+                        manga = "manga_cero"
+                if not manga:
                     manga = "Sin información"
 
                 registros.append({
@@ -170,43 +181,53 @@ class SaleOrder(models.Model):
                     'numero': numero,
                     'tipo': tipo,
                     'talla_camiseta': talla_camiseta,
-                    'talla_short': talla_short or False,  # False/None si viene vacía
+                    'talla_short': talla_short or False,
                     'corte': corte,
                     'manga': manga,
                 })
 
-            # --- 4) ORDENAR -----------------------------------------------------
+            # --- 4) Ordenar resultados ---
             registros_ordenados = sorted(registros, key=lambda r: (orden_tallas.get(
                 r['talla_camiseta'], 999), orden_tallas.get(r['talla_short'], 999)))
 
             if not registros_ordenados:
                 raise ValidationError("El archivo Excel no contiene filas válidas.")
 
+            # --- 5) Crear registros en lote ---
+            _logger.info(f"Creando {len(registros_ordenados)} registros de camisetas...")
+            camiseta_model = self.env['camiseta.registro']
             for r in registros_ordenados:
-                self.env['camiseta.registro'].create({
-                    **r,
-                    'sale_order_id': self.id
-                })
+                camiseta_model.create({
+                                          **r,
+                                          'sale_order_id': self.id
+                                      })
 
+            _logger.info("Importación completada exitosamente.")
             self.archivo_excel = False
 
+            # --- 6) Mensaje visual al usuario ---
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
                 'params': {
                     'title': 'Importación completada',
-                    'message': (f'{len(registros_ordenados)} camisetas importadas correctamente. '
-                                f'{registros_omitidos} filas fueron omitidas por estar incompletas.'),
+                    'message': (f"{len(registros_ordenados)} camisetas importadas correctamente. "
+                                f"{registros_omitidos} filas omitidas por estar incompletas."),
                     'type': 'success',
-                    'next': {
-                        'type': 'ir.actions.act_window_close'
-                    },
-                }
+                    'sticky': False,
+                },
             }
 
         except Exception as e:
+            _logger.exception("Error inesperado al importar Excel")
             raise ValidationError(f"Error al procesar el archivo: {str(e)}")
 
         finally:
+            # --- 7) Limpieza del archivo temporal ---
             if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
+                try:
+                    os.remove(tmp_path)
+                    _logger.info(f"Archivo temporal eliminado: {tmp_path}")
+                except Exception as e:
+                    _logger.warning(f"No se pudo eliminar el archivo temporal: {tmp_path}. Error: {e}")
+

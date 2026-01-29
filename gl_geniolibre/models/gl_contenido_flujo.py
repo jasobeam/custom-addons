@@ -23,7 +23,7 @@ class GeneradorContenidoPropuesta(models.Model):
         ("carrusel", "Carrusel"),
     ], string="Tipo de Contenido", default="post")
     descripcion = fields.Text("Descripción")
-    texto_en_diseno = fields.Char("Texto en Diseño")
+    texto_en_diseno = fields.Text("Texto en Diseño")
     copy = fields.Text("Copy del Post")
     hashtags = fields.Text("Hashtags")
     recomendaciones = fields.Text("Recomendaciones de Diseño")
@@ -60,6 +60,11 @@ class GeneradorContenidoFlujo(models.Model):
 
     # Etapa: Ideas
     notas = fields.Text("Notas")
+    nivel_contenido = fields.Selection(selection=[
+        ("minimalista", "Minimalista"),
+        ("balanceado", "Balanceado"),
+        ("detallado", "Detallado"),
+    ], string="Cantidad de contenido", default="balanceado", required=True, )
     usar = fields.Text("Usar")
     evitar = fields.Text("Evitar")
     promtp_ideas = fields.Text("Promtp para Chatpgt")
@@ -98,11 +103,6 @@ class GeneradorContenidoFlujo(models.Model):
     plan_refinado = fields.Html("Plan Refinado")
 
     # Etapa: Publicaciones
-    # publicaciones_finales = fields.Html("Publicaciones Finales")
-    # Propuestas de contenido
-    # propuestas_ids = fields.One2many("gl.contenido.propuesta", "flujo_id", string="Propuestas de Contenido")
-
-    # 🔹 Aquí el proyecto de marketing asociado al cliente
     project_id = fields.Many2one("project.project", string="Proyecto Relacionado", domain="[('partner_id', '=', partner_id), ('project_type','=','marketing')]", tracking=True, )
 
     metricas = fields.Text("Métricas (JSON)")
@@ -132,38 +132,52 @@ class GeneradorContenidoFlujo(models.Model):
             "publicaciones"
         ]
 
+    def convertir_a_instrucciones(selfself):
+        print("Success")
+
     def crear_ideas(self):
-        """Valida y convierte el JSON en registros del modelo gl.contenido.propuesta"""
+
         for record in self:
-            # 🕒 Determinar la zona horaria del usuario actual
             user_tz_name = self.env.user.tz or "UTC"
             try:
                 tz = pytz.timezone(user_tz_name)
             except pytz.UnknownTimeZoneError:
-                tz = pytz.UTC  # fallback si el tz del usuario no es válido
+                tz = pytz.UTC
 
-            # 1️⃣ Verificar existencia del JSON
             if not record.promtp_respuesta:
                 raise ValidationError("⚠️ El campo 'promtp_respuesta' está vacío. Debes pegar un JSON válido.")
 
-            # 2️⃣ Validar estructura JSON
             try:
                 data = json.loads(record.promtp_respuesta)
             except json.JSONDecodeError as e:
                 raise ValidationError(f"❌ El contenido no es un JSON válido:\n{e}")
 
             if not isinstance(data, list):
-                raise ValidationError("❌ El JSON debe ser una lista de objetos (ejemplo: [ { ... }, { ... } ])")
+                raise ValidationError("❌ El JSON debe ser una lista de objetos.")
 
-            # 3️⃣ Eliminar registros previos (opcional)
             record.publicacion_ids.unlink()
 
-            # 4️⃣ Crear nuevas propuestas
+            contadores = {
+                "post": 0,
+                "reel": 0,
+                "carrusel": 0,
+            }
+
             for item in data:
                 if not isinstance(item, dict):
-                    raise ValidationError("Cada elemento del JSON debe ser un objeto con claves y valores válidos.")
+                    raise ValidationError("Cada elemento del JSON debe ser un objeto.")
 
-                # --- Procesar fecha_publicacion ---
+                tipo = (item.get("tipo") or "post").lower()
+                if tipo not in contadores:
+                    tipo = "post"  # fallback seguro
+
+                contadores[tipo] += 1
+                numero = f"{contadores[tipo]:02d}"
+
+                titulo_base = (item.get("titulo") or "Sin título").strip()
+
+                titulo_final = f"{tipo.capitalize()} {numero} - {titulo_base}"
+
                 fecha_publicacion_str = item.get("fecha_publicacion")
                 fecha_publicacion = False
 
@@ -172,21 +186,18 @@ class GeneradorContenidoFlujo(models.Model):
                         fecha_publicacion_str = f"{fecha_publicacion_str} 08:00:00"
 
                     try:
-                        # 1. Convertir string → datetime local
                         fecha_local = datetime.strptime(fecha_publicacion_str, "%Y-%m-%d %H:%M:%S")
-                        # 2. Localizar con tz del usuario
                         fecha_local = tz.localize(fecha_local)
-                        # 3. Convertir a UTC
                         fecha_utc = fecha_local.astimezone(pytz.UTC)
-                        # 4. Remover tzinfo → Odoo espera naive UTC
                         fecha_publicacion = fecha_utc.replace(tzinfo=None)
                     except Exception:
                         raise ValidationError(f"Formato de fecha inválido: {fecha_publicacion_str}. Usa 'YYYY-MM-DD HH:MM:SS'")
+
                 vals = {
                     "flujo_id": record.id,
-                    "titulo": item.get("titulo", "Sin título"),
+                    "titulo": titulo_final,
                     "fecha_publicacion": fecha_publicacion,
-                    "tipo": item.get("tipo", "post"),
+                    "tipo": tipo,
                     "descripcion": item.get("descripcion"),
                     "texto_en_diseno": item.get("texto_en_diseno"),
                     "copy": item.get("copy"),
@@ -196,20 +207,14 @@ class GeneradorContenidoFlujo(models.Model):
                     "aprobado": False,
                 }
 
-                # Validar campos mínimos
-                if not vals["titulo"]:
-                    raise ValidationError("Cada propuesta debe tener un título válido.")
-
                 self.env["gl.contenido.propuesta"].create(vals)
 
-            # 5️⃣ Avanzar etapa del flujo
             record.etapa = "reunion"
 
-        # 6️⃣ Efecto visual
         return {
             "effect": {
                 "fadeout": "slow",
-                "message": "✅ Propuestas creadas correctamente desde JSON.",
+                "message": "✅ Propuestas creadas correctamente y numeradas por tipo.",
                 "type": "rainbow_man",
             }
         }
@@ -287,6 +292,9 @@ class GeneradorContenidoFlujo(models.Model):
             # --- Filtrar publicaciones no aprobadas ---
             publicaciones = record.publicacion_ids.filtered(lambda p: not p.aprobado)
 
+            if not publicaciones:
+                raise ValidationError("No hay publicaciones pendientes de refinamiento.")
+
             # --- Armar JSON de publicaciones a refinar ---
             publicaciones_data = []
             for pub in publicaciones:
@@ -299,7 +307,7 @@ class GeneradorContenidoFlujo(models.Model):
                     "copy": (pub.copy or "").strip(),
                     "hashtags": (pub.hashtags or "").split() if pub.hashtags else [],
                     "recomendaciones": (pub.recomendaciones or "").strip(),
-                    "cambios_en publicación": (pub.cambios or "").strip(),
+                    "cambios": (pub.cambios or "").strip(),
                 })
 
             # --- Construcción del JSON base (respetando tu contexto creativo completo) ---
@@ -333,13 +341,14 @@ class GeneradorContenidoFlujo(models.Model):
             # --- Compactar JSON ---
             json_base = json.dumps(data, ensure_ascii=False, indent=2)
 
-            # --- Prompt final (formato DRY y claro) ---
-            prompt = ("Eres un agente de marketing especializado en el sector indicado. "
-                      "Lee el siguiente JSON, que contiene el contexto creativo completo y las publicaciones no aprobadas del cliente. "
-                      "Refina los textos, ideas y recomendaciones manteniendo coherencia con el tono, orientación y objetivos del contexto.\n\n"
+            prompt = ("Eres un agente de marketing especializado en el sector indicado.\n"
+                      "Lee el siguiente JSON y úsalo como única fuente de verdad.\n"
+                      "No reescribas ni resumas el JSON. No inventes información.\n\n"
                       f"{json_base}\n\n"
-                      "Devuelve ÚNICAMENTE un JSON con la misma estructura de `publicaciones_a_refinar`, "
-                      "pero con los campos actualizados y mejorados:\n"
+                      "Tarea:\n"
+                      "Refina únicamente las publicaciones listadas en `publicaciones_a_refinar`, "
+                      "mejorando redacción, claridad y coherencia, sin cambiar la estrategia base.\n\n"
+                      "Devuelve ÚNICAMENTE un JSON con la MISMA estructura de `publicaciones_a_refinar`:\n"
                       "[\n"
                       "  {\n"
                       "    \"id\": int,\n"
@@ -347,32 +356,38 @@ class GeneradorContenidoFlujo(models.Model):
                       "    \"tipo\": \"post | reel | historia | carrusel\",\n"
                       "    \"descripcion\": \"Texto mejorado y más claro\",\n"
                       "    \"texto_en_diseno\": \"Frase optimizada para diseño\",\n"
-                      "    \"copy\": \"Versión refinada del copy\",\n"
-                      "    \"hashtags\": [\"#hashtag1\", \"#hashtag2\", \"#hashtag3\"],\n"
+                      "    \"copy\": \"Copy refinado en formato AIDA (sin marcadores)\",\n"
+                      "    \"hashtags\": [\"#hashtag1\", \"#hashtag2\"],\n"
                       "    \"recomendaciones\": \"Sugerencias visuales o de tono actualizadas\"\n"
                       "  }\n"
                       "]\n\n"
-                      "Condiciones:\n"
-                      "- Solo modifica las publicaciones incluidas.\n"
-                      "- Usa el formato AIDA sin marcadores\n"
-                      "- Usa el feedback y las anotaciones del cliente como guía.\n"
-                      "- Mantén coherencia con todo el `contexto_creativo`.\n"
-                      "- Devuelve únicamente el JSON sin texto adicional.")
+                      "Reglas obligatorias (orden de prioridad):\n"
+                      "1) Aplica primero el campo `cambios` de cada publicación. Son instrucciones específicas y prioritarias.\n"
+                      "2) Luego aplica `anotaciones_cliente` si afectan a esas publicaciones.\n"
+                      "3) Luego considera `feedback_cliente` como guía general.\n"
+                      "4) Mantén coherencia total con `contexto_creativo` (usar, evitar, tono, orientación, idioma, público).\n\n"
+                      "Restricciones:\n"
+                      "- No modifiques el `id`.\n"
+                      "- No cambies el `tipo` de publicación salvo que el campo `cambios` lo indique explícitamente.\n"
+                      "- No rehagas la idea desde cero: esto es un REFINAMIENTO.\n"
+                      "- Usa formato AIDA en el `copy` sin escribir los nombres de las etapas.\n"
+                      "- Hashtags en minúsculas y sin duplicados.\n"
+                      "- El campo `texto_en_diseno` es TEXTO VISUAL, no copy.\n"
+                      "- Devuelve solo el JSON final, sin explicaciones.")
 
-            # --- Guardar prompt completo ---
             record.promtp_refinamiento = prompt
-            # --- Notificación visual ---
+
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
                 "params": {
-                    "title": "✅ Ideas Refinadas",
-                    "message": "Contenido generado tomando en cuenta las observaciones. Actualizando la vista...",
+                    "title": "✅ Refinamiento generado",
+                    "message": "Prompt optimizado usando feedback y cambios específicos. Actualizando vista...",
                     "sticky": True,
                     "type": "success",
                     "next": {
                         "type": "ir.actions.client",
-                        "tag": "reload"
+                        "tag": "reload",
                     },
                 },
             }
@@ -438,11 +453,8 @@ class GeneradorContenidoFlujo(models.Model):
 
                 hashtags_txt = _format_hashtags(prop.hashtags)
 
-                description = (f"{(prop.descripcion or '').strip()}\n\n"
-                               f"Texto en diseño:\n{(prop.texto_en_diseno or '').strip()}\n\n"
-                               f"Copy:\n{(prop.copy or '').strip()}\n\n"
-                               f"Hashtags:\n{hashtags_txt}")
-
+                description = (prop.copy or "").strip().replace("\n", "<br/>")
+                objetivo = (prop.descripcion or "")
                 vals = {
                     "name": (prop.titulo or f"Publicación #{prop.id}").strip(),
                     "project_id": record.project_id.id,
@@ -460,6 +472,7 @@ class GeneradorContenidoFlujo(models.Model):
                     "texto_en_diseno": (prop.texto_en_diseno or "").strip(),
                     "hashtags": hashtags_txt,
                     "description": description,
+                    "objetivo": objetivo,
                 }
 
                 Task.create(vals)
@@ -577,18 +590,10 @@ class GeneradorContenidoFlujo(models.Model):
     def generate_prompt(self):
 
         def _safe_date_str(d):
-            # Devuelve ISO (YYYY-MM-DD) o "" si es None
             try:
                 return d.isoformat() if d else ""
             except Exception:
                 return ""
-
-        def _safe_date_human(d):
-            # Devuelve YYYY-MM-DD legible o "..."
-            try:
-                return d.isoformat() if d else "..."
-            except Exception:
-                return "..."
 
         def _try_json_loads(s):
             try:
@@ -597,7 +602,7 @@ class GeneradorContenidoFlujo(models.Model):
                 return {}
 
         def _dedup_lines(s: str) -> str:
-            """Recibe texto multilinea, quita líneas vacías, deduplica y conserva orden."""
+            """Multiline -> quita vacías, deduplica y conserva orden."""
             if not s:
                 return ""
             seen, out = set(), []
@@ -610,38 +615,47 @@ class GeneradorContenidoFlujo(models.Model):
                     out.append(line)
             return "\n".join(out)
 
+        def _guia_por_nivel(nivel: str) -> str:
+            nivel = (nivel or "balanceado").strip().lower()
+            return {
+                "minimalista": "Redacción compacta y directa. Explica lo esencial. AIDA conciso y CTA claro.",
+                "balanceado": "Redacción equilibrada: informa y persuade sin redundancias. AIDA claro y natural.",
+                "detallado": "Redacción más explicativa. Aporta contexto y resuelve dudas comunes. AIDA más desarrollado.",
+            }.get(nivel, "Redacción equilibrada: informa y persuade sin redundancias. AIDA claro y natural.")
+
         for record in self:
-            # --- Datos base seguros ---
-            redes = [r.name for r in record.redes_ids] if record.redes_ids else []
+            if not record.partner_id:
+                raise ValidationError("Debes seleccionar un Cliente/Partner antes de generar el prompt.")
+
             partner = record.partner_id
+            redes = [r.name for r in record.redes_ids] if record.redes_ids else []
+
             idioma = (partner.lang or "es_ES").split("_")[0]
             pais = partner.country_id.name or "Perú"
             ciudad = partner.city or "Lima"
 
             fecha_ini_iso = _safe_date_str(record.date_start)
             fecha_fin_iso = _safe_date_str(record.date)
-            fecha_ini_human = _safe_date_human(record.date_start)
-            fecha_fin_human = _safe_date_human(record.date)
 
-            # Deduplicar URLs
             competencia_clean = _dedup_lines((record.competencia_urls or "").strip())
             tendencias_clean = _dedup_lines((record.tendencias_urls or "").strip())
             dias_clean = (record.dias_festivos_referencia or "").strip()
 
             metricas = _try_json_loads(record.metricas)
 
+            nivel_contenido = getattr(record, "nivel_contenido", None) or "balanceado"
+
             data = {
                 "cliente": {
                     "nombre": partner.name or "",
                     "industria": record.industria or "",
-
                     "redes_activas": redes,
                 },
                 "contexto_creativo": {
                     "etapa": record.etapa,
                     "notas": (record.notas or "").strip(),
                     "usar": (record.usar or "").strip(),
-                    "evitar": (record.evitar or "").strip(),  # Reglas: quedan solo aquí (no se repiten en Condiciones)
+                    "evitar": (record.evitar or "").strip(),
                     "orientacion": record.orientacion_comunicacion or "",
                     "tono": record.tono_comunicacion or "",
                     "publico_objetivo": (record.publico_objetivo or "").strip(),
@@ -657,6 +671,8 @@ class GeneradorContenidoFlujo(models.Model):
                         "ciudad": ciudad,
                         "pais": pais
                     },
+                    "cantidad_contenido": nivel_contenido,
+                    "guia_cantidad_contenido": _guia_por_nivel(nivel_contenido),
                 },
                 "referencias_metricas": metricas,
                 "objetivo_generacion": {
@@ -664,40 +680,47 @@ class GeneradorContenidoFlujo(models.Model):
                         "ideas_iniciales" if record.etapa == "ideas" else "refinamiento" if record.etapa == "refinar" else "publicaciones"),
                     "descripcion": (
                         "Generar contenido alineado al contexto creativo (tono, orientación, idioma, público, fechas), "
-                        f"apoyado en métricas previas y con foco en la industria del cliente "
-                        f"({record.industria or 'especificada por el cliente'})."),
+                        "apoyado en métricas previas y con foco en la industria del cliente ({record.industria})."),
                 },
             }
 
             json_base = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
-            orden = ("Eres un agente de marketing especializado en el sector indicado. "
-                     "Lee el siguiente JSON y, sin reescribirlo ni resumirlo, úsalo como única fuente de verdad.\n\n"
-                     f"{json_base}\n\n")
-
-            instruccion_json = (
-                "A partir del contexto anterior, genera un JSON estructurado con el plan de publicaciones del periodo. "
-                "Devuelve ÚNICAMENTE el JSON con la siguiente estructura:\n\n"
-                "[\n"
-                "  {{\n"
-                "    \"titulo\": \"string\",\n"
-                "    \"fecha_publicacion\": \"YYYY-MM-DD HH:MM:SS\",\n"
-                "    \"tipo\": \"post | reel | historia | carrusel\",\n"
-                "    \"descripcion\": \"Breve resumen del contenido y su objetivo comunicacional.\",\n"
-                "    \"texto_en_diseno\": \"Frase principal que aparecerá en la pieza gráfica o portada del video.\",\n"
-                "    \"copy\": \"Texto para la publicación (copy AIDA).\",\n"
-                "    \"hashtags\": [\"#hashtag1\", \"#hashtag2\", \"#hashtag3\"],\n"
-                "    \"recomendaciones\": \"Sugerencias sobre estilo visual, elementos gráficos, colores, encuadre o tono.\"\n"
-                "  }}\n"
-                "]\n\n"
-                "Condiciones:\n"
-                "- Genera {posts} posts y {reels} reels según el plan.\n"
-                "- Respeta estrictamente TODO lo definido en `contexto_creativo` (tono, orientación, idioma, público_objetivo, "
-                "fechas, usar/evitar, ubicación).\n"
-                "- Entrega solo el JSON sin explicaciones adicionales.").format(posts=int(record.plan_post or 0), reels=int(record.plan_reel or 0))
+            prompt = ("Eres un agente de marketing especializado en el sector indicado.\n"
+                      "Lee el siguiente JSON y úsalo como única fuente de verdad.\n"
+                      "No reescribas ni resumas el JSON. No inventes datos no presentes.\n\n"
+                      f"{json_base}\n\n"
+                      "Tarea:\n"
+                      "Genera un JSON con el plan de publicaciones del periodo.\n\n"
+                      "Devuelve ÚNICAMENTE el JSON con esta estructura:\n"
+                      "[\n"
+                      "  {\n"
+                      "    \"titulo\": \"string\",\n"
+                      "    \"fecha_publicacion\": \"YYYY-MM-DD HH:MM:SS\",\n"
+                      "    \"tipo\": \"post | reel | historia | carrusel\",\n"
+                      "    \"descripcion\": \"Breve resumen del contenido y su objetivo comunicacional.\",\n"
+                      "    \"texto_en_diseno\": \"Frase principal que aparecerá en la pieza gráfica o portada del video.\",\n"
+                      "    \"copy\": \"Copy AIDA (sin etiquetas ni marcadores).\",\n"
+                      "    \"hashtags\": [\"#hashtag1\", \"#hashtag2\"],\n"
+                      "    \"recomendaciones\": \"Sugerencias visuales y de tono.\"\n"
+                      "  }\n"
+                      "]\n\n"
+                      "Condiciones obligatorias (NO opcionales):\n"
+                      f"- Genera exactamente {int(record.plan_post or 0)} posts y {int(record.plan_reel or 0)} reels.\n"
+                      "- Respeta estrictamente TODO lo definido en `contexto_creativo` (usar/evitar, tono, orientación, idioma, público, fechas, ubicación).\n"
+                      "- AIDA obligatorio en `copy` SIN escribir las palabras Atención, Interés, Deseo o Acción.\n"
+                      "- El campo `copy` está PROHIBIDO entregarlo en una sola linea.\n"
+                      "- El CTA debe ir en una línea final separada.\n"
+                      "- Usa `cantidad_contenido` y `guia_cantidad_contenido` para definir profundidad del texto.\n"
+                      "- Aplica `usar` y `evitar` como INSTRUCCIONES DIRECTAS.\n"
+                      "- Hashtags en minúsculas, sin duplicados.\n"
+                      "- El campo `titulo` NO debe incluir el tipo de contenido (reel, post, carrusel, historia).\n"
+                      "- Todo contenido con `tipo = reel` DEBE estructurarse así: 1. Hook 2. Problema 3. Valor 4. Autoridad 5. CTA, que el contenido esté etiquetado.\n"
+                      "- Usa siempre un solo salto de linea no doble n n \n"
+                      "- Devuelve SOLO el JSON final. No agregues explicaciones ni texto fuera del JSON.")
 
             # --- Guardar el prompt completo ---
-            record.promtp_ideas = orden + instruccion_json
+            record.promtp_ideas = prompt
 
         # --- Notificación visual ---
         return {

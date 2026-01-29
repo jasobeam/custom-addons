@@ -205,7 +205,7 @@
                                     <field name="competencia_urls"/>
                                     <field name="tendencias_urls"/>
                                     <field name="publico_objetivo"/>
-
+                                    <field name="nivel_contenido"/>
                                     <field name="dias_festivos_referencia" colspan="1"/>
                                     <button name="sugerir_dias_festivos"
                                             type="object"
@@ -245,7 +245,13 @@
                         <page string="Reunión con Cliente">
                             <group>
                                 <field name="feedback_cliente"/>
+                                <button name="convertir_a_instrucciones"
+                                        type="object"
+                                        string="Analizar"
+                                        class="btn-secondary"
+                                        icon="fa-android"/>
                                 <field name="anotaciones_cliente"/>
+                                <separator string="Propuestas de Publicaciones"/>
                                 <field name="publicacion_ids"/>
                                 <button name="ver_calendario"
                                         type="object"

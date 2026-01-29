@@ -30,6 +30,21 @@
                         </strong>
                         <hr/>
                         <td name="td_name">
+                            <p style="margin: 5mm 0 0 0;">  <!-- margin-top: 5mm, resto 0 -->
+                                <strong>Objetivo:</strong>
+                            </p>
+                            <div style="margin-left: 10mm;">
+                                <p t-field="o.objetivo" style="margin: 0;"/>
+                            </div>
+                            <!-- Título con margin-top: 5mm y sin sangría -->
+                            <p style="margin: 5mm 0 0 0;">
+                                <strong>Texto en Diseño:</strong>
+                            </p>
+                            <!-- Contenido con sangría de 10mm -->
+                            <div style="margin-left: 10mm;">
+                                <p t-field="o.texto_en_diseno" style="margin: 0;"/>
+                            </div>
+
                             <!-- Título con margin-top: 5mm y sin sangría -->
                             <p style="margin: 5mm 0 0 0;">  <!-- margin-top: 5mm, resto 0 -->
                                 <strong>Texto en Descripción:</strong>
@@ -48,14 +63,7 @@
                                 <p t-field="o.hashtags" style="margin: 0;"/>
                             </div>
 
-                            <!-- Título con margin-top: 5mm y sin sangría -->
-                            <p style="margin: 5mm 0 0 0;">
-                                <strong>Texto en Diseño:</strong>
-                            </p>
-                            <!-- Contenido con sangría de 10mm -->
-                            <div style="margin-left: 10mm;">
-                                <p t-field="o.texto_en_diseno" style="margin: 0;"/>
-                            </div>
+
                         </td>
                     </div>
                     <div class="footer" align="center">

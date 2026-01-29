@@ -33,6 +33,43 @@ class WhatsappChatroom(models.Model):
         for record in self:
             record.state = 'open'
 
+    @api.model
+    def handle_incoming_message(self, phone_number, message_text, message_type='text', sender='client', timestamp=None, external_message_id=None, media_url=None, media_filename=None, media_mimetype=None):
+        if not timestamp:
+            timestamp = fields.Datetime.now()
+
+        chatroom = self.search([
+            ('phone_number', '=', phone_number)
+        ], limit=1)
+        if not chatroom:
+            chatroom.create({
+                'name': f"Chat con {phone_number}",
+                'phone_number': phone_number,
+                'state': 'open',
+                'last_message': message_text,
+                'last_message_time': timestamp,
+            })
+        else:
+            chatroom.write({
+                'last_message': message_text,
+                'last_message_time': timestamp,
+                'state': 'open',
+            })
+
+        self.env['whatsapp.chatmessage'].create({
+            'chatroom_id': chatroom.id,
+            'sender': sender,
+            'message': message_text,
+            'message_type': message_type,
+            'timestamp': timestamp,
+            'external_message_id': external_message_id,
+            'media_url': media_url,
+            'media_filename': media_filename,
+            'media_mimetype': media_mimetype,
+        })
+
+        return chatroom.id
+
 
 class WhatsappChatMessage(models.Model):
     _name = 'whatsapp.chatmessage'
@@ -41,10 +78,10 @@ class WhatsappChatMessage(models.Model):
 
     chatroom_id = fields.Many2one('whatsapp.chatroom', string='Chatroom', ondelete='cascade')
     sender = fields.Selection([
-                                  ('user', 'Usuario'),
-                                  ('bot', 'Bot'),
-                                  ('client', 'Cliente')
-                              ], string='Remitente')
+        ('user', 'Usuario'),
+        ('bot', 'Bot'),
+        ('client', 'Cliente')
+    ], string='Remitente')
     message = fields.Text(string='Mensaje')
     timestamp = fields.Datetime(string='Fecha y Hora')
     message_type = fields.Selection([
@@ -54,6 +91,11 @@ class WhatsappChatMessage(models.Model):
         ('audio', 'Audio'),
         ('video', 'Video'),
     ], string='Tipo de Mensaje', default='text')
+
+    external_message_id = fields.Char(string="ID del Mensaje en WhatsApp", index=True)
+    media_url = fields.Char(string="URL del Archivo/Multimedia")
+    media_filename = fields.Char(string="Nombre del Archivo")
+    media_mimetype = fields.Char(string="Tipo MIME")
 
 
 class MensajesAutomaticos(models.Model):

@@ -60,9 +60,9 @@
     </record>
 
     <menuitem id="menu_whatsapp_root"
-              name="WhatsApp Chat"
+              name="AI Chatbot"
               sequence="10"
-              web_icon="gl_tithor,static/src/img/whatsapp.png"
+              web_icon="gl_chatbot,static/src/img/whatsapp.png"
               groups="base.group_user,base.group_system"/>
 
     <menuitem id="menu_whatsapp_chatroom"
@@ -94,7 +94,7 @@
                 <field name="prioridad" string="Prioridad"/>
 
                 <!-- Botones de acción -->
-                <field name="contenido" invisible="1"/>
+                <field name="contenido"/>
 
             </list>
         </field>

@@ -6,6 +6,7 @@ Estilos Primera Columna
 /**********************************************************/
 .chatroom-list {
     max-height: 95%;
+    min-width: 25%;
 }
 
 .chatroom-list h4 {
@@ -359,11 +360,7 @@ Estilos CSS (para ultimo tab)
 Estilos CSS Seccion de datos del cliente
 ************************************************/
 
-.partner-info {
-    padding: 15px;
-    background: #f8f9fa;
-    border-left: 1px solid #dee2e6;
-}
+
 
 .partner-card {
     display: flex;

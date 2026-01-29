@@ -74,7 +74,9 @@ class project_task(models.Model):
     ], string='Tipo de Publicación', default='otro', required=True)
     red_social_ids = fields.Many2many('red.social', string='Redes Sociales', )
     hashtags = fields.Text(string="Hashtags")
-    texto_en_diseno = fields.Html(string="Texto en diseño")
+    texto_en_diseno = fields.Text(string="Texto en diseño")
+    objetivo = fields.Text(string="Objetivo del post")
+
     partner_id = fields.Many2one('res.partner')
     partner_page_access_token = fields.Char(related="partner_id.facebook_page_access_token")
     partner_facebook_page_id = fields.Char(related="partner_id.facebook_page_id")
@@ -85,8 +87,8 @@ class project_task(models.Model):
     post_estado = fields.Char(string="Estado de la Publicación", default="Pendiente")
     fb_post_id = fields.Char(string="Facebook Post ID")
     fb_post_url = fields.Char(string="Facebook URL")
-    fb_video_id = fields.Char(string="Facebook Video ID")
-    fb_video_url = fields.Char(string="Facebook Video URL")
+    fb_video_id = fields.Char(string="Facebook Video ID")  # ------ Este se elimina
+    fb_video_url = fields.Char(string="Facebook Video URL")  # ------ Este se elimina
     inst_post_id = fields.Char(string="Instagram Post ID")
     inst_post_url = fields.Char(string="Instagram URL")
     linkedin_post_id = fields.Char(string="LinkedIn Post ID")
@@ -95,7 +97,7 @@ class project_task(models.Model):
     tiktok_post_url = fields.Char(string="TikTok URL")
 
     # ====================================================================================== Tiktok Requisitos#
-        # PRIVACIDAD (obligatorio por API)
+    # PRIVACIDAD (obligatorio por API)
     tiktok_privacy_level = fields.Selection([
         ('PUBLIC', 'Público'),
         ('FRIENDS', 'Amigos'),
@@ -124,7 +126,6 @@ class project_task(models.Model):
     # Nuevo campo label para mensajes legales / restricciones de TikTok
     tiktok_creator_status_info = fields.Text(string="Estado del Creador (TikTok)", readonly=True, )
     tiktok_video_duration = fields.Integer(string="Duración del video (segundos)")
-
 
     @api.onchange('red_social_ids')
     def _onchange_red_social_ids_check_tiktok(self):
@@ -254,193 +255,299 @@ class project_task(models.Model):
         self.ensure_one()  # Asegura que solo hay un registro seleccionado
         self.post_estado = "Pendiente"
 
-    def revisar_post(self, from_cron=False):  # Optimizado
-        error_message = []
+    def revisar_post(self, from_cron=False):
         API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
+        base_url = f'https://graph.facebook.com/{API_VERSION}'
+        error_messages = []
+
+        # Preparación del texto
+        plain_description = html2plaintext(self.description or '')
+        plain_hashtags = html2plaintext(self.hashtags or '')
+        paragraphs = [p.strip() for p in plain_description.split('\n') if p.strip()]
+        formatted_description = '\n\n'.join(paragraphs)
+        formatted_description = remove_duplicate_links(formatted_description).rstrip()
+        combined_text = f"{formatted_description}\n\n{plain_hashtags}"
+        combined_text = combined_text.replace('\u200b', '').replace('\t', '').strip()
+
         try:
-            if self.post_estado == "Procesando":
-                # 2. Verificar el estado de procesamiento
-                base_url = f'https://graph.facebook.com/{API_VERSION}'
-                status_url = f"{base_url}/{self.inst_post_id}"
-                status_params = {
-                    "access_token": self.partner_page_access_token,
-                    "fields": "status_code"
+            # =========================================================
+            # VALIDACIÓN BASE
+            # =========================================================
+            if self.post_estado != "Procesando":
+                return True if from_cron else {
+                    "type": "ir.actions.client",
+                    "tag": "display_notification",
+                    "params": {
+                        "title": "Sin acciones",
+                        "message": "El contenido no está en estado Procesando.",
+                        "type": "info",
+                    },
                 }
-                status_response = requests.get(status_url, params=status_params)
-                status_data = status_response.json()
 
-                status_code = status_data.get('status_code')
-                if status_code == 'FINISHED':
-                    # Publicación inmediata
-                    publish_params = {
-                        'access_token': self.partner_page_access_token,
-                        'creation_id': self.inst_post_id,
+            # =========================================================
+            # 2) FACEBOOK FEED (FOTOS)
+            # =========================================================
+            if self.post_estado == "Procesando" and self.tipo == "feed" and self.fb_post_id and not self.fb_post_url:
+
+                try:
+                    media_ids = json.loads(self.fb_post_id)
+                except Exception:
+                    media_ids = None
+
+                if media_ids:
+                    fb_feed_url = f"{base_url}/{self.partner_facebook_page_id}/feed"
+
+                    params = {
+                        "access_token": self.partner_page_access_token,
+                        "message": combined_text or "",
+                        "attached_media": json.dumps([{
+                            "media_fbid": mid
+                        } for mid in media_ids]),
+                        "published": True,
                     }
-                    publish_url = f"{base_url}/{self.partner_instagram_page_id}/media_publish"
-                    publish_response = requests.post(publish_url, params=publish_params)
 
-                    if publish_response.status_code == 200:
-                        self.inst_post_id = publish_response.json().get('id')
-                        self.post_estado = 'Publicado'
+                    try:
+                        resp = requests.post(fb_feed_url, params=params, timeout=20)
+                        resp.raise_for_status()
+                        data = resp.json()
+                    except Exception as e:
+                        self.post_estado = "Error"
+                        raise ValidationError(f"Facebook Feed: error de comunicación con la API. Detalle: {e}")
+
+                    if data.get("id"):
+                        self.fb_post_id = data["id"]
+                        self.post_estado = "Publicado"
                     else:
-                        error_message.append(publish_response.json().get('error', {}).get('message', 'Error desconocido'))
-                        raise ValidationError(error_message)
-                elif status_code == 'ERROR':
-                    self.post_estado = 'Error'
-                    self.state = '01_in_progress'
-                    raise ValidationError(status_data)
-                else:
-                    raise ValidationError(status_data)
-
-            # Revisar y Generar Permalink de Facebook
-            if self.fb_post_id and self.post_estado == "Publicado":
-                self.fb_post_url = f"https://www.facebook.com/{self.fb_post_id}" if self.tipo != "video_stories" else f"https://www.facebook.com/{self.partner_facebook_page_id}"
-
-            # Generar Permalink de Instagram
-            if self.inst_post_id and self.post_estado == "Publicado" and not self.inst_post_url:
-                url = f"https://graph.facebook.com/{API_VERSION}/{self.inst_post_id}"
-                params = {
-                    'fields': 'media_type,permalink,username',
-                    'access_token': self.partner_page_access_token
-                }
-                response = requests.get(url, params=params)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get('media_type') == "STORY":
-                        username = data.get('username')
-                        self.inst_post_url = f"https://www.instagram.com/{username}/" if username else False
-                    else:
-                        self.inst_post_url = data.get('permalink')
-                else:
-                    error_message.append(response.json())
-
-            # Generar Permalink de TikTok
-            if self.tiktok_post_id and self.post_estado == "Publicado" and not self.tiktok_post_url:
-                status_url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
-                headers = {
-                    'Authorization': f'Bearer {self.partner_tiktok_access_token}',
-                    'Content-Type': 'application/json',
-                }
-                payload = {
-                    "publish_id": self.tiktok_post_id
-                }
-                response = requests.post(status_url, headers=headers, json=payload)
-
-                if response.status_code == 200 and response.json().get('data', {}).get('status') == 'PUBLISH_COMPLETE':
-                    video_id = response.json().get("data", {}).get("publicaly_available_post_id")
-                    if video_id:
-                        video_query_url = "https://open.tiktokapis.com/v2/video/query/"
-                        payload = {
-                            "filters": {
-                                "video_ids": [
-                                    video_id.strip("[]")
-                                ]
+                        err = data.get("error", {})
+                        if err.get("code") in (9007, 2207027):
+                            if from_cron:
+                                return True
+                            return {
+                                "type": "ir.actions.client",
+                                "tag": "display_notification",
+                                "params": {
+                                    "title": "Procesando",
+                                    "message": "Facebook aún está procesando las imágenes.",
+                                    "type": "warning",
+                                    "sticky": True,
+                                    "next": {
+                                        "type": "ir.actions.client",
+                                        "tag": "reload",
+                                    }
+                                },
                             }
-                        }
-                        params = {
-                            'fields': "share_url"
-                        }
-                        video_response = requests.post(video_query_url, headers=headers, params=params, json=payload)
 
-                        if video_response.status_code == 200:
-                            video_data = video_response.json().get('data', {}).get('videos', [])
-                            if video_data:
-                                self.tiktok_post_url = video_data[0].get('share_url')
-                        else:
-                            error_message.append(video_response.json().get('error', {}).get('message', 'Error desconocido en TikTok'))
-                    else:
-                        error_message.append("No se pudo obtener el video_id para esta publicación.")
-                else:
-                    error_message.append("El video aún no fue procesado")
+                        self.post_estado = "Error"
+                        raise ValidationError(f"Facebook Feed: error al publicar. Detalle: {data}")
 
-            # Generar Permalink de Instagram
-            if self.linkedin_post_id and self.post_estado == "Publicado":
-                self.linkedin_post_url = f"https://www.linkedin.com/feed/update/{self.linkedin_post_id}/"
+            # URL Facebook Feed
+            if self.fb_post_id and self.post_estado == "Publicado" and not self.fb_post_url:
+                self.fb_post_url = f"https://www.facebook.com/{self.fb_post_id}"
 
-            # Mostrar errores acumulados si los hay
-            if error_message:
+            # =========================================================
+            # 2.2) FACEBOOK STORIES (VIDEO)
+            # =========================================================
+            if self.tipo == "video_stories" and self.fb_post_id and not self.fb_post_url:
+                self.fb_post_url = f"https://www.facebook.com/{self.partner_facebook_page_id}"
+
+                if from_cron:
+                    return True
+
                 return {
                     "type": "ir.actions.client",
                     "tag": "display_notification",
                     "params": {
-                        "title": "Error Inesperado",
-                        "message": '\n'.join([str(error) for error in error_message]),
-                        "type": "danger",
-                        "sticky": True,
-                        'next': {
-                            'type': 'ir.actions.act_window_close'
+                        "title": "URL actualizado",
+                        "message": "Historia publicada. Enlace de Stories disponible.",
+                        "type": "success",
+                        "sticky": False,
+                        "next": {
+                            "type": "ir.actions.client",
+                            "tag": "reload"
                         },
                     },
                 }
 
-            # En caso de éxito
-            return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "title": "Publicación Revisada",
-                    "message": "Las URL fueron actualizadas",
-                    "type": "success",
-                    'next': {
-                        'type': 'ir.actions.act_window_close'
-                    },
-                },
-            }
+            # =========================================================
+            # 3) FACEBOOK REELS (VIDEO) – MISMO PATRÓN QUE FEED
+            # =========================================================
+            if self.tipo == "video_reels" and self.fb_post_id and not self.fb_post_url:
+                # 3.1 Consultar estado del video
+                status_url = f"{base_url}/{self.fb_post_id}"
+                status_params = {
+                    "access_token": self.partner_page_access_token,
+                    "fields": "status",
+                }
+                try:
+                    resp = requests.get(status_url, params=status_params, timeout=20)
+                    resp.raise_for_status()
+                    sdata = resp.json()
+                    print(sdata)
+                except Exception as e:
+                    self.post_estado = "Error"
+                    raise ValidationError(f"Facebook Reel: no se pudo consultar el estado del video. Detalle: {e}")
+
+                video_status = (sdata.get("status") or {}).get("video_status")
+
+                # Error de procesamiento
+                if video_status == "error":
+                    self.post_estado = "Error"
+                    raise ValidationError(f"Facebook Reel: error procesando el video. Detalle: {sdata}")
+
+                # 3.2 Publicar Reel
+                if video_status in ("upload_complete", "processing"):
+
+                    publish_url = f"{base_url}/{self.partner_facebook_page_id}/video_reels"
+                    publish_params = {
+                        "access_token": self.partner_page_access_token,
+                        "video_id": self.fb_post_id,
+                        "upload_phase": "finish",
+                        "video_state": "PUBLISHED",
+                        "description": combined_text or "",
+                    }
+                    try:
+                        print(publish_params)
+
+                        resp = requests.post(publish_url, params=publish_params, timeout=20)
+                        resp.raise_for_status()
+                        pdata = resp.json()
+
+                        # Subir thumbnail al video (best-effort)
+                        if self.imagen_portada and self.tipo == "video_reels":
+                            image_data = base64.b64decode(self.imagen_portada)
+                            image_file = BytesIO(image_data)
+                            image_file.name = 'miniatura.jpg'  # necesario para multipart/form-data
+
+                            url = f"https://graph.facebook.com/{API_VERSION}/{self.fb_post_id}/thumbnails"
+                            files = {
+                                'source': ('miniatura.jpg', image_file, 'image/jpeg')
+                            }
+                            data = {
+                                'access_token': self.partner_page_access_token,
+                                'is_preferred': 'true'
+                            }
+                            response = requests.post(url, files=files, data=data)
+                            print("thumbnails", response)
+
+                        print("success", pdata.get("post_id"))
+
+                        if "post_id" in pdata:
+                            self.fb_post_id = pdata["post_id"]
+                        else:
+                            raise ValidationError(f"Facebook Reel: no devolvió post_id. Detalle: {pdata}")
+
+                        # 3.3 Obtener URL del Reel (YA ES POST REAL)
+                        try:
+                            r = requests.get(f"{base_url}/{self.fb_post_id}", params={
+                                "fields": "permalink_url",
+                                "access_token": self.partner_page_access_token,
+                            }, timeout=20, )
+                            r.raise_for_status()
+
+                            permalink = r.json().get("permalink_url")
+                            if permalink:
+                                # Facebook ya devuelve URL completa
+                                self.fb_post_url = permalink
+
+                        except Exception as e:
+                            raise ValidationError(f"Error al obtener permalink del Reel: {e}")
+
+                    except Exception as e:
+                        raise ValidationError(f"Error al publicar Reel en Facebook: {e}")
+
+                    # Facebook dice: aún procesando → NO es error
+                    err = pdata.get("error")
+                    if err and err.get("code") in (9007, 2207027):
+                        if from_cron:
+                            return True
+                        return {
+                            "type": "ir.actions.client",
+                            "tag": "display_notification",
+                            "params": {
+                                "title": "Procesando",
+                                "message": "Facebook aún está procesando el reel.",
+                                "type": "warning",
+                                "sticky": True,
+                            },
+                        }
+
+                    # Error real
+                    if "post_id" not in pdata:
+
+                        raise ValidationError(f"Facebook Reel: fallo al publicar. Detalle: {pdata}")
+
+                    # Éxito → ya publicado
+                    self.fb_post_id = pdata["post_id"]
+
+
+
+            # =========================================================
+            # 4) TIKTOK
+            # =========================================================
+            # if self.tiktok_post_id and not self.tiktok_post_url:
+            #     status_url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
+            #     headers = {
+            #         "Authorization": f"Bearer {self.partner_tiktok_access_token}",
+            #         "Content-Type": "application/json",
+            #     }
+            #     payload = {
+            #         "publish_id": self.tiktok_post_id
+            #     }
+            #     data = requests.post(status_url, headers=headers, json=payload).json()
+            #
+            #     if data.get("data", {}).get("status") == "PUBLISH_COMPLETE":
+            #         video_id = data["data"].get("publicaly_available_post_id")
+            #         if video_id:
+            #             self.tiktok_post_url = f"https://www.tiktok.com/@_/video/{video_id}"
+
+            # =========================================================
+            # 5) LINKEDIN
+            # =========================================================
+            # if self.linkedin_post_id and not self.linkedin_post_url:
+            #     self.linkedin_post_url = f"https://www.linkedin.com/feed/update/{self.linkedin_post_id}/"
+
+            # =========================================================
+            # 6) ESTADO FINAL
+            # =========================================================
+            # if error_messages:
+            #     self.post_estado = "Error"
+            # elif self.fb_post_url or self.inst_post_url or self.tiktok_post_url or self.linkedin_post_url:
+            #     self.post_estado = "Publicado"
+            # return {
+            #     'effect': {
+            #         'message': f"Contenido publicado exitosamente",
+            #         'fadeout': 'slow',
+            #         'type': 'rainbow_man',
+            #         'next': {
+            #             'type': 'ir.actions.act_window_close'
+            #         },
+            #     }
+            # }
+
+
 
         except Exception as e:
-            _logger.error(f"Error en revisar_post para registro {self.id}: {str(e)}")
+            _logger.error("Error en revisar_post (%s): %s", self.id, e)
+
             if from_cron:
                 raise
-            _logger.error("Error en revisar_post: %s", e)
-            # Correo
-            error_detalle = str(e)
-            self.env['mail.mail'].create({
-                'subject': 'Error en automatización',
-                'body_html': f"""
-                                <p><strong>Ocurrió un error en la automatización</strong></p>
-                                <p><b>Proceso:</b> revisar_post</p>
-                                <p><b>Tarea:</b> {self.display_name}</p>
-                                <p><b>ID:</b> {self.id}</p>
-                                <p><b>Error:</b></p>
-                                <pre style="background:#f6f6f6;padding:10px;border:1px solid #ddd;">{error_detalle}</pre>
-                            """,
-                'email_to': self.env.ref('base.user_admin').email,
-            }).send()
+
+            # self.post_estado = "Error"
 
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
                 "params": {
-                    "title": "Error Inesperado",
+                    "title": "Error inesperado",
                     "message": str(e),
                     "type": "danger",
                     "sticky": True,
-                    'next': {
-                        'type': 'ir.actions.act_window_close'
-                    },
                 },
             }
 
     def publicar_post(self):
         API_VERSION = self.env['ir.config_parameter'].sudo().get_param('gl_facebook.api_version')
-
         BASE_URL = f'https://graph.facebook.com/{API_VERSION}'
-
-        def remove_duplicate_links(text):
-            seen_urls = set()
-
-            def replace_link(match):
-                url = match.group(0)
-                if url in seen_urls:
-                    return ''
-                seen_urls.add(url)
-                return url
-
-            # Eliminar enlaces duplicados
-            text_without_duplicates = re.sub(r'https?://\S+', replace_link, text)
-            text_cleaned = re.sub(r'\[\d+\]', '', text_without_duplicates)
-
-            return text_cleaned
 
         # Funciones
         def upload_images_to_facebook(attachment):
@@ -461,170 +568,232 @@ class project_task(models.Model):
             else:
                 raise Exception(f"Error al subir una imagen en Facebook: {response_upload.json()}")
 
-        def publish_on_facebook(media_ids):
+        def publish_on_facebook(media_urls, combined_text):
+            """
+            SIEMPRE pendiente.
+            - feed (fotos/carrusel): guarda JSON de media_fbid en fb_post_id (temporal)
+            - video/reels: sube video y guarda fb_video_id
+            """
+            BASE_URL_LOCAL = f'https://graph.facebook.com/{API_VERSION}'
 
-            url = f"{BASE_URL}/{self.partner_facebook_page_id}/{self.tipo}"
+            # ---- FEED (FOTOS) ----
             if self.tipo == "feed":
-                params = {
-                    'access_token': self.partner_page_access_token,
-                    'message': combined_text,
-                    'attached_media': str([{
-                        'media_fbid': media_id
-                    } for media_id in media_ids]),
-                    'published': True,  # Set to False for scheduling
-                }
 
-                response = requests.post(url, params=params)
-                response_data = response.json()
-                print(url)
-                print("feed", response_data)
-                if response.status_code == 200:
-                    return response.json().get("id")
-                else:
-                    raise ValidationError(f"Error al publicar Feed en Facebook: {response_data}")
-            else:
-                # Initialize an Upload Session
-                headers = {
-                    "Content-Type": "application/json",
-                }
+                photo_ids = []
+
+                for photo_url in media_urls:
+                    upload_url = f"{BASE_URL_LOCAL}/{self.partner_facebook_page_id}/photos"
+                    params = {
+                        "url": photo_url,  # URL pública (S3)
+                        "published": "false",  # CLAVE
+                        "access_token": self.partner_page_access_token,
+                    }
+                    resp = requests.post(upload_url, params=params)
+                    data = resp.json()
+                    if "id" not in data:
+                        raise ValidationError(f"Error subiendo foto: {data}")
+
+                    photo_ids.append(data["id"])
+
+                # Guardamos SOLO IDs reales de Facebook
+                self.write({
+                    "fb_post_id": json.dumps(photo_ids),  # ["photo_id1","photo_id2",...]
+                    "fb_post_url": False,
+                    "post_estado": "Procesando",
+                })
+
+                return True
+
+            # =====================================================
+            # 2) FACEBOOK STORIES (VIDEO) → PUBLICACIÓN DIRECTA
+            # =====================================================
+            if self.tipo == "video_stories":
+
+                url = f"{BASE_URL_LOCAL}/{self.partner_facebook_page_id}/video_stories"
+
+                # 1) start
                 params = {
                     "upload_phase": "start",
-                    "access_token": self.partner_page_access_token
+                    "access_token": self.partner_page_access_token,
                 }
-                response = requests.post(url, data=headers, params=params)
-                response_data = response.json()
-                print("Video", response_data)
-                if 'video_id' in response_data and 'upload_url' in response_data:
-                    video_id = response_data['video_id']
-                    self.fb_video_id = video_id
-                    upload_url = response_data['upload_url']
-                else:
-                    raise ValidationError(f"Error Starting session: {response_data}")
+                resp = requests.post(url, params=params)
+                data = resp.json()
 
-                # Upload a Hosted File
+                if "video_id" not in data or "upload_url" not in data:
+                    raise ValidationError(f"Error iniciando upload Story FB: {data}")
+
+                video_id = data["video_id"]
+                upload_url = data["upload_url"]
+
+                # Guardamos ID del video story
+                self.write({
+                    "fb_post_id": video_id,
+                    "post_estado": "Procesando",
+                })
+
+                # 2) upload file
                 headers = {
                     "Authorization": f"OAuth {self.partner_page_access_token}",
-                    "file_url": media_ids[0],
+                    "file_url": media_urls[0],  # URL pública del video en S3
                 }
-                response = requests.post(upload_url, headers=headers)
-                response_data = response.json()
-                print("upload_url", response_data)
-                if 'success' not in response_data:
-                    raise ValidationError(f"Error uploading video file: {response_data}")
+                up = requests.post(upload_url, headers=headers)
+                up_data = up.json()
 
-                params = {
-                    "access_token": self.partner_page_access_token,
-                    "video_id": video_id,
+                if "success" not in up_data:
+                    raise ValidationError(f"Error subiendo video Story FB: {up_data}")
+
+                # 3) finish (requiere video_id)
+                finish_params = {
                     "upload_phase": "finish",
-                    "video_state": "PUBLISHED",
+                    "access_token": self.partner_page_access_token,
+                    "video_id": video_id,  # <-- CLAVE
+                }
+
+                fin = requests.post(url, params=finish_params)  # url = /{page_id}/video_stories
+                fin_data = fin.json()
+
+                # IMPORTANTE: si Facebook devuelve post_id, guárdalo para armar URL luego
+                if fin_data.get("post_id"):
+                    self.write({
+                        "fb_post_id": fin_data["post_id"]
+                    })
+                return True
+
+            # =====================================================
+            # 3) FACEBOOK REELS (VIDEO)
+            # =====================================================
+            if self.tipo == "video_reels":
+
+                url = f"{BASE_URL_LOCAL}/{self.partner_facebook_page_id}/video_reels"
+
+                # 1) start upload session
+                params = {
+                    "upload_phase": "start",
+                    "access_token": self.partner_page_access_token,
+                }
+                resp = requests.post(url, params=params)
+                data = resp.json()
+
+                if "video_id" not in data or "upload_url" not in data:
+                    raise ValidationError(f"Error Starting session (Reel FB): {data}")
+
+                video_id = data["video_id"]
+                upload_url = data["upload_url"]
+
+                # Guardamos TEMPORALMENTE video_id en fb_post_id
+                self.write({
+                    "fb_post_id": video_id,  # temporal (video_id)
+                    "fb_post_url": False,
+                    "post_estado": "Procesando",
+                })
+
+                # 2) upload file via file_url
+                headers = {
+                    "Authorization": f"OAuth {self.partner_page_access_token}",
+                    "file_url": media_urls[0],  # URL pública en S3
+                }
+                up = requests.post(upload_url, headers=headers)
+                up_data = up.json()
+
+                if "success" not in up_data:
+                    raise ValidationError(f"Error uploading Reel FB: {up_data}")
+
+                # 3) finish upload SIN publicar
+                finish_url = f"{BASE_URL_LOCAL}/{video_id}"
+                finish_params = {
+                    "access_token": self.partner_page_access_token,
+                    "upload_phase": "finish",
+                    "video_state": "UNPUBLISHED",
                     "description": combined_text,
                 }
-                response = requests.post(url, params=params)
-                response_data = response.json()
-                print("success", response_data)
-                if 'success' in response_data:
-                    print(self.tipo)
-                    if self.imagen_portada and self.tipo == "video_reels":
-                        image_data = base64.b64decode(self.imagen_portada)
-                        image_file = BytesIO(image_data)
-                        image_file.name = 'miniatura.jpg'  # necesario para el multipart/form-data
 
-                        url = f"https://graph.facebook.com/{API_VERSION}/{video_id}/thumbnails"
-                        files = {
-                            'source': ('miniatura.jpg', image_file, 'image/jpeg')
-                        }
-                        data = {
-                            'access_token': self.partner_page_access_token,
-                            'is_preferred': 'true'
-                        }
-                        response = requests.post(url, files=files, data=data)
-                        print("thumbnails", response)
-                    print("success", response_data.get("post_id"))
-                    return response_data.get("post_id")
+                fin = requests.post(finish_url, params=finish_params)
+                fin_data = fin.json()
 
-                else:
-                    raise ValidationError(f"Error al publicar Reel en Facebook: {response_data}")
+                if fin.status_code != 200:
+                    raise ValidationError(f"Error finishing upload Reel FB: {fin_data}")
 
-        def publish_on_instagram(media_urls):
-            estado_procesando = False
+                return True
+            return None
+
+        def publish_on_instagram(media_urls, combined_text, cover_url=None):
+            """
+            SIEMPRE pendiente.
+            Crea container (inst_post_id) y NO hace media_publish aquí.
+            """
+            BASE_URL_LOCAL = f'https://graph.facebook.com/{API_VERSION}'
+            container_url = f"{BASE_URL_LOCAL}/{self.partner_instagram_page_id}/media"
             carousel_ids = []
-            container_url = f"{BASE_URL}/{self.partner_instagram_page_id}/media"
-            # Step 1: Create media container
+
             if len(media_urls) == 1:
                 if self.tipo == "feed":
                     container_params = {
                         'access_token': self.partner_page_access_token,
                         'caption': combined_text,
-                        'image_url': media_urls[0],  # For images
-                        'published': True,  # Important for scheduling
+                        'image_url': media_urls[0],
+                        'published': False,
                     }
                 else:
-                    estado_procesando = True
-
                     if self.tipo == "video_stories":
                         container_params = {
                             'access_token': self.partner_page_access_token,
                             'caption': combined_text,
-                            'video_url': media_urls[0],  # For images
-                            'published': True,  # Important for scheduling,
+                            'video_url': media_urls[0],
+                            'published': False,
                             'media_type': 'STORIES'
                         }
-                    else:  # Publicación de Reels
+                    else:
                         container_params = {
                             'access_token': self.partner_page_access_token,
                             'caption': combined_text,
-                            'video_url': media_urls[0],  # For images
-                            'published': True,  # Important for scheduling,
+                            'video_url': media_urls[0],
+                            'published': False,
                             'media_type': 'REELS',
-                            "cover_url": cover_url
+                            'cover_url': cover_url
                         }
 
-                container_response = requests.post(container_url, params=container_params)
-                print(container_response.json())
-                container_id = container_response.json().get('id')
-                if container_response.status_code != 200:
-                    error_message = container_response.json()
-                    raise ValidationError(f"Error al crear el contenedor de Instagram: {error_message}")
+                r = requests.post(container_url, params=container_params)
+                data = r.json()
+                if r.status_code != 200 or not data.get("id"):
+                    raise ValidationError(f"Error al crear contenedor IG: {data}")
+                container_id = data["id"]
 
             else:
                 for url in media_urls:
-                    carousel_params = {
+                    item_params = {
                         'access_token': self.partner_page_access_token,
                         'is_carousel_item': 'true',
-                        'image_url': url,  # For images
+                        'image_url': url,
+                        'published': False,
                     }
-                    carousel_response = requests.post(container_url, params=carousel_params)
-                    carousel_id = carousel_response.json().get('id')
-                    carousel_ids.append(carousel_response.json()['id'])
+                    rr = requests.post(container_url, params=item_params)
+                    d = rr.json()
+                    if rr.status_code != 200 or not d.get("id"):
+                        raise ValidationError(f"Error item carrusel IG: {d}")
+                    carousel_ids.append(d["id"])
+
                 carousel_params = {
                     'media_type': 'CAROUSEL',
-                    'children': ",".join(carousel_ids),  # Join all IDs with commas
+                    'children': ",".join(carousel_ids),
                     'caption': combined_text,
-                    'access_token': self.partner_page_access_token
-                }
-
-                container_response = requests.post(container_url, carousel_params)
-                container_id = container_response.json()['id']
-
-            if not estado_procesando:
-
-                # For immediate publishing (without scheduling)
-                publish_params = {
                     'access_token': self.partner_page_access_token,
-                    'creation_id': container_id,
+                    'published': False,
                 }
+                r = requests.post(container_url, params=carousel_params)
+                data = r.json()
+                if r.status_code != 200 or not data.get("id"):
+                    raise ValidationError(f"Error contenedor carrusel IG: {data}")
+                container_id = data["id"]
 
-                publish_url = f"{BASE_URL}/{self.partner_instagram_page_id}/media_publish"
-                publish_response = requests.post(publish_url, params=publish_params)
-                print(publish_response.json())
-                if publish_response.status_code != 200:
-                    error_message = publish_response.json().get('error', {}).get('message', 'Unknown error')
-                    raise ValidationError(f"Error al publicar en Instagram: {error_message}")
+            self.write({
+                "inst_post_id": container_id,
+                "inst_post_url": False,
+                "post_estado": "Procesando",
+            })
 
-                return publish_response.json().get('id')
-            else:
+            print("Fin Publicar en Instagram", container_id)
 
-                return container_id, estado_procesando
+            return True
 
         def publish_on_tiktok(media_urls):
             url = "https://open.tiktokapis.com/v2/post/publish/video/init/"
@@ -936,52 +1105,29 @@ class project_task(models.Model):
             # Facebook
             if 'Facebook' in self.red_social_ids.mapped('name'):
                 try:
-                    if self.tipo == "feed":
-                        for attachment in self.adjuntos_ids:
-                            media_id = upload_images_to_facebook(attachment)  # Pass single attachment
-                            media_ids.append(media_id)
-                        fb_response = publish_on_facebook(media_ids)
-
-                    else:
-                        fb_response = publish_on_facebook(media_urls)
-
-                    if fb_response:
-
-                        if not self.tipo == "video_stories":
-                            self.write({
-                                'fb_post_id': fb_response,
-                                'fb_post_url': f'https://www.facebook.com/{fb_response}',
-                            })
-                        else:
-
-                            self.fb_post_url = f"https://www.facebook.com/{self.partner_facebook_page_id}"
-
-                        success_messages.append("Facebook: Publicación exitosa")
-                        published_on.append("Facebook")
-                    else:
-                        errors.append("Facebook: No se recibió respuesta del servidor")
+                    # if self.tipo == "feed":
+                    #     for attachment in self.adjuntos_ids:
+                    #         media_id = upload_images_to_facebook(attachment)
+                    #         media_ids.append(media_id)
+                    #     publish_on_facebook(media_ids, combined_text)  # <- ahora correcto
+                    # else:
+                    publish_on_facebook(media_urls, combined_text)  # <- ahora correcto
+                    success_messages.append("Facebook: Publicación en proceso")
+                    published_on.append("Facebook")
                 except Exception as e:
                     errors.append(f"Facebook: {str(e)}")
 
             # Instagram
             if 'Instagram' in self.red_social_ids.mapped('name'):
-
                 try:
-                    instagram_result = publish_on_instagram(media_urls)
+                    cover_url = None
+                    if self.imagen_portada and self.tipo == "video_reels":
+                        cover_url = upload_files_to_s3([("portada.jpg", self.imagen_portada)], aws_api, aws_secret)[0]
 
-                    if isinstance(instagram_result, tuple):  # Cuando es video (procesando=True)
-                        container_id, procesando = instagram_result
-                        self.write({
-                            'inst_post_id': container_id,
-                        })
-                        success_messages.append("Instagram: Publicación en proceso" if procesando else "Instagram: Publicación exitosa")
-                        published_on.append("Instagram")
-                    else:  # Cuando es imagen normal
-                        self.write({
-                            'inst_post_id': instagram_result,
-                        })
-                        success_messages.append("Instagram: Publicación exitosa")
-                        published_on.append("Instagram")
+                    publish_on_instagram(media_urls, combined_text, cover_url)
+
+                    success_messages.append("Instagram: Publicación en proceso")
+                    published_on.append("Instagram")
                 except Exception as e:
                     errors.append(f"Instagram: {str(e)}")
 
@@ -1018,13 +1164,16 @@ class project_task(models.Model):
 
             # Resultado final
             if published_on:
+                # SIEMPRE queda en Procesando (la publicación real ocurre en revisar_post)
                 self.write({
-                    'post_estado': 'Procesando' if procesando else 'Publicado'
+                    'post_estado': 'Procesando'
                 })
+
                 if errors:
                     # Publicación parcialmente exitosa
-                    _logger.error("Error en mi_funcion_critica: %s", e)
-                    error_detalle = str(e)
+                    error_detalle = "\n".join(errors)
+                    _logger.error("Error en publicar_post: %s", error_detalle)
+
                     self.env['mail.mail'].create({
                         'subject': 'SERVER GL - Error en el Sistema',
                         'body_html': f"""
@@ -1034,37 +1183,54 @@ class project_task(models.Model):
                             <p><b>ID:</b> {self.id}</p>
                             <p><b>Error:</b></p>
                             <pre style="background:#f6f6f6;padding:10px;border:1px solid #ddd;">{error_detalle}</pre>
-                            """,
+                        """,
                         'email_to': self.env.ref('base.user_admin').email,
                     }).send()
+
                     return {
                         "type": "ir.actions.client",
                         "tag": "display_notification",
                         "params": {
-                            "title": "Error inesperado",
-                            'message': '\n'.join(success_messages + [
+                            "title": "Proceso con observaciones",
+                            "message": '\n'.join(success_messages + [
                                 "Errores:"
                             ] + errors),
                             "type": "danger",
                             "sticky": True,
                         },
                     }
+
                 else:
-                    # Todo exitoso
+                    try:
+                        self.revisar_post()
+                    except Exception as err:
+                        # No rompemos la UI, solo registramos
+                        _logger.error("Error en revisar_post (post ID %s): %s", self.id, err)
+
                     return {
-                        'effect': {
-                            'message': f"Contenido publicado en: {', '.join(published_on)}",
-                            'fadeout': 'slow',
-                            'type': 'rainbow_man',
-                            'next': {
-                                'type': 'ir.actions.act_window_close'
-                            },
-                        }
+                        "type": "ir.actions.client",
+                        "tag": "display_notification",
+                        "params": {
+                            "title": "Proceso en curso",
+                            "message": f"Contenido enviado a procesamiento en: {', '.join(published_on)}",
+                            "type": "success",
+                            "sticky": False,
+                            "next": {
+                                "type": "ir.actions.client",
+                                "tag": "reload",
+                            }
+                        },
                     }
+
             else:
                 # Todo falló
-                _logger.error("Error en mi_funcion_critica: %s", e)
-                error_detalle = str(e)
+                error_detalle = "\n".join(errors) if errors else "Error no especificado"
+                _logger.error("Error en publicar_post: %s", error_detalle)
+
+                self.write({
+                    'post_estado': 'Procesando'
+                })
+                print("Aqui debe cebir Procesando")
                 self.env['mail.mail'].create({
                     'subject': 'SERVER GL - Error en el Sistema',
                     'body_html': f"""
@@ -1074,10 +1240,11 @@ class project_task(models.Model):
                         <p><b>ID:</b> {self.id}</p>
                         <p><b>Error:</b></p>
                         <pre style="background:#f6f6f6;padding:10px;border:1px solid #ddd;">{error_detalle}</pre>
-                        """,
+                    """,
                     'email_to': self.env.ref('base.user_admin').email,
                 }).send()
-                raise ValidationError("No se pudo publicar en ninguna red social:\n" + "\n".join(errors))
+
+                raise ValidationError("No se pudo iniciar el proceso en ninguna red social:\n" + error_detalle)
 
         except Exception as e:
             _logger.error("Error en mi_funcion_critica: %s", e)
@@ -1283,3 +1450,20 @@ def get_video_duration_ffprobe(base64_data):
 
     except Exception as e:
         raise ValidationError(f"No se pudo obtener la duración del video usando ffprobe: {e}")
+
+
+def remove_duplicate_links(text):
+    seen_urls = set()
+
+    def replace_link(match):
+        url = match.group(0)
+        if url in seen_urls:
+            return ''
+        seen_urls.add(url)
+        return url
+
+    # Eliminar enlaces duplicados
+    text_without_duplicates = re.sub(r'https?://\S+', replace_link, text)
+    text_cleaned = re.sub(r'\[\d+\]', '', text_without_duplicates)
+
+    return text_cleaned

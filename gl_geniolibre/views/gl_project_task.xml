@@ -10,6 +10,7 @@
                 <xpath expr="//page[@name='description_page']" position="replace">
                     <page name="description_page" string="Description">
                         <group>
+                            <field name="objetivo" invisible="tipo == 'otro' "/>
                             <field name="description" type="html" options="{'collaborative': true, 'resizable': true}"
                                    placeholder="Texto en la descripcion del post..."/>
                             <field name="hashtags" invisible="tipo == 'otro' "/>
@@ -32,33 +33,25 @@
 
                     <widget name="web_ribbon" bg_color="text-bg-warning" title="Programado"
                             invisible="post_estado != 'Programado'"/>
+
                     <widget name="web_ribbon" bg_color="text-bg-info" title="Procesando"
                             invisible="post_estado != 'Procesando'"/>
+
+                    <widget name="web_ribbon" bg_color="text-bg-primary" title="Revisando"
+                            invisible="post_estado != 'Revisando'"/>
+
                     <widget name="web_ribbon" bg_color="text-bg-success" title="Publicado"
                             invisible="post_estado != 'Publicado'"/>
+
                     <widget name="web_ribbon" bg_color="text-bg-danger" title="Error"
                             invisible="post_estado != 'Error'"/>
+
                     <div class="d-flex w-100">
                         <field name="priority" widget="priority_switch" class="me-3"/>
                         <field name="name" options="{'line_breaks': False}" widget="text"
                                class="o_task_name text-truncate w-md-75 w-100 pe-2" placeholder="Task Title..."/>
                     </div>
                 </xpath>
-                <xpath expr="//page[@name='description_page']" position="after">
-                    <page string="Archivos de la Tarea" invisible="tipo == 'otro' ">
-                        <group>
-                            <group>
-                                <field name="adjuntos_ids" widget="many2many_binary"
-                                       options="{'no_create': True , 'accepted_file_extensions': '.jpeg,.jpg,.mp4'}"/>
-                                <field name="tiktok_video_duration"/>
-                            </group>
-                            <group>
-                                <field name="imagen_portada" widget="image" accept=".jpg,.jpeg,image/jpeg"/>/>
-                            </group>
-                        </group>
-                    </page>
-                </xpath>
-                <!---  Requisitos TIKTOK-->
                 <xpath expr="//page[@name='description_page']" position="after">
                     <page string="Publicar en TikTok"
                           name="tiktok_publish_page"
@@ -105,6 +98,21 @@
                     </page>
 
                 </xpath>
+                <xpath expr="//page[@name='description_page']" position="after">
+                    <page string="Archivos de la Tarea" invisible="tipo == 'otro' ">
+                        <group>
+                            <group>
+                                <field name="adjuntos_ids" widget="many2many_binary"
+                                       options="{'no_create': True , 'accepted_file_extensions': '.jpeg,.jpg,.mp4'}"/>
+                                <field name="tiktok_video_duration"/>
+                            </group>
+                            <group>
+                                <field name="imagen_portada" widget="image" accept=".jpg,.jpeg,image/jpeg"/>/>
+                            </group>
+                        </group>
+                    </page>
+                </xpath>
+                <!---  Requisitos TIKTOK-->
 
                 <xpath expr="//group/group[2]" position="inside">
                     <field name="tipo" widget="selection" readonly="post_estado != 'Pendiente'"/>
@@ -130,10 +138,13 @@
                     </div>
                 </xpath>
                 <xpath expr="//field[@name='tag_ids']" position="after">
-                    <field name="fb_post_url" widget="url" invisible="not fb_post_url"/>
-                    <field name="inst_post_url" widget="url" invisible="not inst_post_url"/>
-                    <field name="tiktok_post_url" widget="url" invisible="not tiktok_post_url"/>
-                    <field name="linkedin_post_url" widget="url" invisible="not linkedin_post_url"/>
+                    <field name="fb_post_url" widget="url"/>
+                    <field name="fb_post_id"/>
+                    <field name="fb_video_id"/>
+                    <field name="inst_post_url" widget="url"/>
+                    <field name="inst_post_id"/>
+                    <field name="tiktok_post_url" widget="url"/>
+                    <field name="linkedin_post_url" widget="url"/>
                     <field name="post_estado" invisible="tipo == 'otro'"/>
                     <div class="d-flex justify-content-end o_state_container" invisible="not active">
                         <field name="state" widget="project_task_state_selection" class="o_task_state_widget"
